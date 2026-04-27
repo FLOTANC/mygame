@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ちきゅうをつくろう</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;700;900&family=Noto+Sans+JP:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+        html,body{width:100%;height:100%;background:#000;overflow:hidden;
+            font-family:'Noto Sans JP','Outfit',sans-serif;color:#fff}
+        canvas{display:block}
+
+        /* ── back ── */
+        .back{
+            position:fixed;top:1.2rem;left:1.4rem;z-index:100;
+            text-decoration:none;color:rgba(255,255,255,.45);
+            font-family:'Outfit',sans-serif;font-size:.72rem;letter-spacing:.14em;
+            border:1px solid rgba(255,255,255,.14);border-radius:100px;
+            padding:.38rem .9rem;transition:color .2s,border-color .2s,background .2s;
+        }
+        .back:hover{color:#fff;border-color:rgba(255,255,255,.4);background:rgba(255,255,255,.06)}
+
+        /* ── title ── */
+        .title{
+            position:fixed;top:1.15rem;left:50%;transform:translateX(-50%);z-index:100;
+            font-family:'Outfit',sans-serif;font-weight:900;
+            font-size:clamp(.88rem,2.1vw,1.05rem);letter-spacing:.07em;
+            color:rgba(255,255,255,.72);pointer-events:none;
+            text-shadow:0 0 28px rgba(80,160,255,.5);
+        }
+
+        /* ── stats ── */
+        .stats{
+            position:fixed;bottom:8.6rem;left:50%;transform:translateX(-50%);
+            display:flex;gap:2.8rem;z-index:100;pointer-events:none;
+        }
+        .stat{display:flex;flex-direction:column;align-items:center;gap:.18rem}
+        .stat-val{
+            font-family:'Outfit',sans-serif;font-weight:900;
+            font-size:1.6rem;line-height:1;
+        }
+        .stat-lbl{
+            font-size:.54rem;letter-spacing:.15em;color:rgba(255,255,255,.32);
+            text-transform:uppercase;font-family:'Outfit',sans-serif;
+        }
+        .stat-country .stat-val{color:#7ee8a2}
+        .stat-water   .stat-val{color:#5ec8f2}
+        .stat-cloud   .stat-val{color:#b8ccf0}
+
+        /* ── actions ── */
+        .actions{
+            position:fixed;bottom:1.8rem;left:50%;transform:translateX(-50%);
+            display:flex;gap:.75rem;z-index:100;
+        }
+        .act-btn{
+            display:flex;flex-direction:column;align-items:center;gap:.42rem;
+            background:rgba(8,8,20,.72);
+            border-radius:20px;padding:.95rem 1.3rem .88rem;
+            cursor:pointer;border:none;color:#fff;min-width:84px;
+            -webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);
+            transition:transform .22s,background .22s,box-shadow .22s;
+        }
+        .act-btn:hover{transform:translateY(-3px);background:rgba(24,24,48,.85)}
+        .act-btn:active{transform:translateY(0)}
+        .act-btn.country{border:1px solid rgba(126,232,162,.28);box-shadow:0 0 18px rgba(126,232,162,.07)}
+        .act-btn.water  {border:1px solid rgba(94,200,242,.28);box-shadow:0 0 18px rgba(94,200,242,.07)}
+        .act-btn.cloud  {border:1px solid rgba(184,204,240,.28);box-shadow:0 0 18px rgba(184,204,240,.07)}
+        .act-btn.reset  {border:1px solid rgba(255,255,255,.10)}
+        .act-btn.country:hover{box-shadow:0 0 30px rgba(126,232,162,.22)}
+        .act-btn.water:hover  {box-shadow:0 0 30px rgba(94,200,242,.22)}
+        .act-btn.cloud:hover  {box-shadow:0 0 30px rgba(184,204,240,.22)}
+        .act-btn.disabled{opacity:.32;cursor:not-allowed;transform:none!important;box-shadow:none!important}
+        .btn-icon{font-size:1.45rem;line-height:1}
+        .btn-lbl{font-size:.57rem;letter-spacing:.07em;
+            font-family:'Outfit',sans-serif;font-weight:700;
+            color:rgba(255,255,255,.68);white-space:nowrap}
+
+        /* ── popup ── */
+        .popup{
+            position:fixed;top:3.6rem;left:50%;transform:translateX(-50%);
+            z-index:101;pointer-events:none;
+            font-family:'Outfit',sans-serif;font-weight:900;
+            font-size:1.05rem;letter-spacing:.05em;
+            text-shadow:0 2px 14px rgba(0,0,0,.9);
+            opacity:0;transition:opacity .3s;
+            white-space:nowrap;
+        }
+        .popup.show{opacity:1}
+
+        /* ── toast ── */
+        .toast{
+            position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+            background:rgba(8,8,24,.92);
+            border:1px solid rgba(255,255,255,.14);border-radius:26px;
+            padding:2rem 3.2rem;text-align:center;
+            pointer-events:none;z-index:200;
+            opacity:0;transition:opacity .4s;
+        }
+        .toast.show{opacity:1}
+        .toast-ttl{font-size:1.5rem;font-weight:900;margin-bottom:.4rem;
+            font-family:'Outfit',sans-serif}
+        .toast-sub{font-size:.76rem;color:rgba(255,255,255,.46);letter-spacing:.06em}
+
+        /* ── sound button ── */
+        .sound-btn{
+            position:fixed;top:1.1rem;right:1.4rem;z-index:100;
+            width:42px;height:42px;border-radius:50%;
+            background:rgba(255,255,255,.08);
+            border:1px solid rgba(255,255,255,.15);
+            color:#fff;font-size:1.15rem;cursor:pointer;
+            display:flex;align-items:center;justify-content:center;
+            transition:background .2s,transform .15s;
+        }
+        .sound-btn:hover{background:rgba(255,255,255,.16);transform:scale(1.08)}
+        .sound-btn.muted{opacity:.4}
+    </style>
+</head>
+<body>
+
+<audio id="bgm" src="earth-bgm.mp3" loop preload="auto"></audio>
+<a href="index.html" class="back">← もどる</a>
+<button class="sound-btn" id="soundBtn" title="BGM">🔊</button>
+<div class="title">ちきゅうをつくろう！</div>
+<div class="popup" id="popup"></div>
+
+<div class="stats">
+    <div class="stat stat-country">
+        <span class="stat-val" id="sC">0</span>
+        <span class="stat-lbl">くに</span>
+    </div>
+    <div class="stat stat-water">
+        <span class="stat-val" id="sW">1</span>
+        <span class="stat-lbl">うみ</span>
+    </div>
+    <div class="stat stat-cloud">
+        <span class="stat-val" id="sCl">1</span>
+        <span class="stat-lbl">くも</span>
+    </div>
+</div>
+
+<div class="actions">
+    <button class="act-btn country" id="btnC">
+        <span class="btn-icon">🗺️</span>
+        <span class="btn-lbl">くにをふやす</span>
+    </button>
+    <button class="act-btn water" id="btnW">
+        <span class="btn-icon">🌊</span>
+        <span class="btn-lbl">うみをふやす</span>
+    </button>
+    <button class="act-btn cloud" id="btnCl">
+        <span class="btn-icon">☁️</span>
+        <span class="btn-lbl">くもをふやす</span>
+    </button>
+    <button class="act-btn reset" id="btnR">
+        <span class="btn-icon">🔄</span>
+        <span class="btn-lbl">リセット</span>
+    </button>
+</div>
+
+<div class="toast" id="toast">
+    <div class="toast-ttl" id="tTitle">🌍 ちきゅうのかんせい！</div>
+    <div class="toast-sub" id="tSub">すべてのくにとうみとくもができた！</div>
+</div>
+
+<script type="importmap">
+{
+    "imports": {
+        "three":         "https://cdn.jsdelivr.net/npm/three@0.161/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.161/examples/jsm/"
+    }
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls }   from 'three/addons/controls/OrbitControls.js';
+import { EffectComposer }  from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass }      from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+
+// ══════════════════════════════════════════════════════════
+// COUNTRY DATA  [name, lat°, lon°, r, g, b]
+// ══════════════════════════════════════════════════════════
+const COUNTRIES = [
+    ['にほん',           36, 138,  1.00, 0.38, 0.34],
+    ['アメリカ',         38, -97,  0.24, 0.74, 0.94],
+    ['ブラジル',        -10, -53,  0.18, 0.82, 0.46],
+    ['ロシア',           62,  95,  0.68, 0.44, 0.94],
+    ['インド',           22,  79,  0.98, 0.78, 0.18],
+    ['ちゅうごく',       35, 104,  0.96, 0.34, 0.34],
+    ['オーストラリア',  -27, 134,  0.96, 0.86, 0.28],
+    ['カナダ',           58, -96,  0.96, 0.54, 0.22],
+    ['イギリス',         54,  -2,  0.28, 0.54, 0.96],
+    ['フランス',         46,   2,  0.82, 0.28, 0.84],
+    ['ドイツ',           51,  10,  0.46, 0.92, 0.46],
+    ['みなみアフリカ',  -30,  25,  0.98, 0.72, 0.22],
+    ['メキシコ',         23,-102,  0.28, 0.92, 0.86],
+    ['アルゼンチン',    -36, -65,  0.18, 0.64, 0.94],
+    ['エジプト',         27,  30,  0.98, 0.84, 0.54],
+    ['ナイジェリア',      9,   8,  0.44, 0.94, 0.28],
+    ['インドネシア',     -2, 118,  0.98, 0.54, 0.22],
+    ['サウジアラビア',   24,  45,  0.96, 0.90, 0.58],
+    ['トルコ',           39,  35,  0.94, 0.38, 0.58],
+    ['スペイン',         40,  -4,  0.96, 0.62, 0.24],
+];
+const N = COUNTRIES.length;
+
+function latLon2XYZ(lat, lon){
+    const p = lat*Math.PI/180, t = lon*Math.PI/180;
+    return [Math.cos(p)*Math.cos(t), Math.sin(p), Math.cos(p)*Math.sin(t)];
+}
+
+// ══════════════════════════════════════════════════════════
+// GAME STATE
+// ══════════════════════════════════════════════════════════
+let activeCount = 0;
+let waterStep   = 1; // 1..8
+let cloudStep   = 1; // 1..6
+const WMAX = 8, CMAX = 6;
+
+// Seeds: random positions on sphere (replaced when user presses country button)
+function randSphereVec() {
+    const th=Math.random()*Math.PI*2, ph=Math.acos(2*Math.random()-1);
+    return new THREE.Vector3(Math.sin(ph)*Math.cos(th), Math.cos(ph), Math.sin(ph)*Math.sin(th));
+}
+const seeds  = Array.from({length:N}, randSphereVec);
+const active = new Float32Array(N).fill(0);
+const landR  = new Float32Array(N).fill(0.3);   // continent radius per seed
+const landW  = new Float32Array(N).fill(0);     // animation weight 0→1
+
+// Track in-progress rise animations
+let landAnims = []; // [{idx, t0}]
+
+const wLevel  = () => 0.40 + waterStep*0.05;   // 0.45 → 0.80
+const cDens   = () => 0.04 + cloudStep*0.14;   // 0.18 → 0.88
+
+// ══════════════════════════════════════════════════════════
+// GLSL helpers
+// ══════════════════════════════════════════════════════════
+const NOISE = `
+float _h(vec3 p){
+    p=fract(p*vec3(443.897,441.423,437.195));
+    p+=dot(p.zxy,p.yxz+19.19);
+    return fract(p.x*p.y*p.z);
+}
+float _n(vec3 p){
+    vec3 i=floor(p),f=fract(p);
+    f=f*f*(3.-2.*f);
+    return mix(
+        mix(mix(_h(i),_h(i+vec3(1,0,0)),f.x),
+            mix(_h(i+vec3(0,1,0)),_h(i+vec3(1,1,0)),f.x),f.y),
+        mix(mix(_h(i+vec3(0,0,1)),_h(i+vec3(1,0,1)),f.x),
+            mix(_h(i+vec3(0,1,1)),_h(i+vec3(1,1,1)),f.x),f.y),f.z);
+}
+float fbm(vec3 p){
+    float v=0.,a=.5;
+    for(int i=0;i<6;i++){v+=a*_n(p);p=p*2.1+vec3(1.7,9.2,3.8);a*=.5;}
+    return v;
+}
+float terrain(vec3 p){
+    vec3 q=p+.85*vec3(fbm(p*1.3),fbm(p*1.3+vec3(5.1,1.3,2.7)),fbm(p*1.3+vec3(2.1,8.4,6.2)));
+    return fbm(q*2.5);
+}
+`;
+
+// Build GLSL country-color function (if-else chain for non-const indexing)
+const COUNTRY_COL = (() => {
+    const lines = COUNTRIES.map((c,i) =>
+        `if(i==${i})return vec3(${c[3].toFixed(2)},${c[4].toFixed(2)},${c[5].toFixed(2)});`
+    ).join('');
+    return `vec3 cCol(int i){${lines}return vec3(.5);}`;
+})();
+
+// ══════════════════════════════════════════════════════════
+// EARTH SHADER
+// ══════════════════════════════════════════════════════════
+const eVert = `
+varying vec3 vWP,vNml;
+void main(){
+    vNml=normalize(normalMatrix*normal);
+    vec4 wp=modelMatrix*vec4(position,1.);
+    vWP=wp.xyz;
+    gl_Position=projectionMatrix*viewMatrix*wp;
+}`;
+
+const eFrag = `
+precision highp float;
+uniform float uTime,uWater;
+uniform vec3  uSun;
+uniform vec3  uSeeds[20];
+uniform float uActive[20];
+uniform float uLandR[20];   // continent radius (angular dist metric)
+uniform float uLandW[20];   // animation weight 0→1
+varying vec3 vWP,vNml;
+${NOISE}
+${COUNTRY_COL}
+void main(){
+    vec3 np=normalize(vWP);
+
+    // ── Base FBM terrain ────────────────────────────────
+    float h=terrain(np);
+
+    // ── User-placed continent bumps ──────────────────────
+    // For each active seed: warp-distorted distance → smooth bump → raise h
+    for(int i=0;i<20;i++){
+        if(uActive[i]<0.5) continue;
+        float dist=1.-dot(np,uSeeds[i]);   // 0=center, ~2=antipode
+        float r=uLandR[i];
+        // FBM warp makes coastlines organic, not circular
+        float warp=fbm(np*4.8+vec3(float(i)*1.71,float(i)*3.13,float(i)*2.37))*0.48;
+        float ed=max(0., dist - warp*r*0.55);
+        float bump = smoothstep(r, r*0.12, ed) * uLandW[i];
+        // 0.22 raise clears water threshold; keep green/forest colours by not stacking too high
+        h += bump * 0.22;
+    }
+
+    float wl=uWater;
+    float lat=abs(np.y);
+    vec3 col;
+
+    // ── terrain colour ──────────────────────────────────
+    if(h<wl){
+        float dep=1.-h/wl;
+        col=mix(vec3(.06,.30,.58),vec3(.016,.062,.26),dep*dep);
+        col+=vec3(0.,.025,.05)*fbm(np*9.+uTime*.04)*.35;
+    } else {
+        float lh=(h-wl)/(1.-wl);
+        if(lh<.035){
+            col=vec3(.88,.82,.60);
+        } else if(lat>.80){
+            col=mix(vec3(.80,.86,.92),vec3(.96,.97,1.),smoothstep(.80,.94,lat));
+        } else {
+            vec3 trop=vec3(.10,.44,.09);
+            vec3 temp=vec3(.23,.47,.16);
+            vec3 dry =vec3(.62,.52,.32);
+            vec3 mtn =vec3(.46,.43,.40);
+            vec3 snow=vec3(.90,.93,.97);
+            vec3 biome;
+            if(lat<.32){
+                float m=fbm(np*4.+vec3(10.))*1.5;
+                biome=mix(dry,trop,smoothstep(.22,.75,m));
+            } else {
+                biome=mix(trop,temp,smoothstep(.22,.62,lat));
+            }
+            biome=mix(biome,mtn,smoothstep(.52,.72,lh));
+            biome=mix(biome,snow,smoothstep(.70,.85,lh));
+            col=biome;
+        }
+    }
+
+    // ── Voronoi country colouring ───────────────────────
+    float md1=1e9,md2=1e9;
+    int ni=-1,ni2=-1;
+    for(int i=0;i<20;i++){
+        float d=1.-dot(np,uSeeds[i]);
+        d+=(1.-uActive[i])*9e4;
+        if(d<md1){md2=md1;ni2=ni;md1=d;ni=i;}
+        else if(d<md2){md2=d;ni2=i;}
+    }
+    if(ni>=0&&uActive[ni]>.5&&h>=wl){
+        col=mix(col,cCol(ni),.42);
+        if(ni2>=0&&uActive[ni2]>.5){
+            float b=1.-smoothstep(.0,.024,md2-md1);
+            col=mix(col,vec3(1.),b*.6);
+        }
+    }
+
+    // ── lighting ────────────────────────────────────────
+    float sd=dot(vNml,uSun);
+    col*=(.14+max(.0,sd)*.86);
+
+    // specular on ocean
+    if(h<wl){
+        vec3 vd=normalize(cameraPosition-vWP);
+        float sp=pow(max(dot(vNml,normalize(uSun+vd)),.0),90.)*.72;
+        col+=vec3(.72,.88,1.)*sp;
+    }
+
+    // city lights (night + land + country)
+    float nT=smoothstep(.08,-.20,sd);
+    if(nT>.01&&h>=wl){
+        float city=fbm(np*14.+vec3(100.));
+        city=smoothstep(.60,.76,city);
+        float hc=(ni>=0&&uActive[ni]>.5)?1.:.0;
+        city*=mix(.15,1.,hc);
+        col=mix(col,vec3(1.,.88,.5)*.68,city*nT);
+    }
+
+    gl_FragColor=vec4(col,1.);
+}`;
+
+// ══════════════════════════════════════════════════════════
+// CLOUD SHADER
+// ══════════════════════════════════════════════════════════
+const cVert = `
+varying vec3 vWP,vNml;
+void main(){
+    vNml=normalize(normalMatrix*normal);
+    vec4 wp=modelMatrix*vec4(position,1.);
+    vWP=wp.xyz;
+    gl_Position=projectionMatrix*viewMatrix*wp;
+}`;
+const cFrag = `
+precision highp float;
+uniform float uTime,uDensity;
+uniform vec3 uSun;
+varying vec3 vWP,vNml;
+${NOISE}
+void main(){
+    vec3 np=normalize(vWP);
+    vec3 cp=np+uTime*.0026*vec3(1.,.0,.2);
+    float cn=fbm(cp*3.7);
+    float th=1.-uDensity*.56-.15;
+    float a=smoothstep(th,th+.13,cn);
+    if(a<.012) discard;
+    float df=max(.0,dot(vNml,uSun));
+    vec3 cc=mix(vec3(.66,.68,.74),vec3(.98,.98,1.),df);
+    gl_FragColor=vec4(cc,a*.92);
+}`;
+
+// ══════════════════════════════════════════════════════════
+// ATMOSPHERE SHADER
+// ══════════════════════════════════════════════════════════
+const aVert = `
+varying vec3 vNml,vWP;
+void main(){
+    vNml=normalize(normalMatrix*normal);
+    vec4 wp=modelMatrix*vec4(position,1.);
+    vWP=wp.xyz;
+    gl_Position=projectionMatrix*viewMatrix*wp;
+}`;
+const aFrag = `
+precision highp float;
+uniform vec3 uSun;
+varying vec3 vNml,vWP;
+void main(){
+    vec3 vd=normalize(cameraPosition-vWP);
+    float fres=pow(1.-max(dot(vNml,vd),.0),3.2);
+    float sa=max(dot(vNml,uSun),.0);
+    vec3 day=vec3(.30,.60,.96);
+    vec3 twi=vec3(.90,.52,.22);
+    float tw=smoothstep(.0,.38,sa)*smoothstep(.66,.38,sa);
+    vec3 ac=mix(mix(day,twi,tw*.65),day,smoothstep(.28,.68,sa));
+    gl_FragColor=vec4(ac,fres*.70);
+}`;
+
+// ══════════════════════════════════════════════════════════
+// RENDERER  &  SCENE
+// ══════════════════════════════════════════════════════════
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.setSize(innerWidth,innerHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.08;
+document.body.appendChild(renderer.domElement);
+
+const scene  = new THREE.Scene();
+scene.background = new THREE.Color(0x000608);
+
+const camera = new THREE.PerspectiveCamera(45,innerWidth/innerHeight,.01,200);
+camera.position.set(0,0,3.1);
+
+const controls = new OrbitControls(camera,renderer.domElement);
+controls.enableDamping=true; controls.dampingFactor=.06;
+controls.minDistance=1.55; controls.maxDistance=9;
+controls.autoRotate=true; controls.autoRotateSpeed=.42;
+
+// Sun direction
+let sunAngle = .5;
+const sunDir = new THREE.Vector3(Math.cos(sunAngle)*.85,.28,Math.sin(sunAngle)*.85).normalize();
+
+// ── Earth ──
+const earthUni = {
+    uTime  :{value:0},
+    uWater :{value:wLevel()},
+    uSun   :{value:sunDir},
+    uSeeds :{value:seeds},
+    uActive:{value:active},
+    uLandR :{value:landR},
+    uLandW :{value:landW},
+};
+const earthMat = new THREE.ShaderMaterial({
+    uniforms:earthUni, vertexShader:eVert, fragmentShader:eFrag
+});
+const earth = new THREE.Mesh(new THREE.SphereGeometry(1,128,80), earthMat);
+scene.add(earth);
+
+// ── Clouds ──
+const cloudUni = {
+    uTime   :{value:0},
+    uDensity:{value:cDens()},
+    uSun    :{value:sunDir},
+};
+const cloudMat = new THREE.ShaderMaterial({
+    uniforms:cloudUni, vertexShader:cVert, fragmentShader:cFrag,
+    transparent:true, depthWrite:false,
+});
+const clouds = new THREE.Mesh(new THREE.SphereGeometry(1.014,96,64), cloudMat);
+scene.add(clouds);
+
+// ── Atmosphere ──
+const atmMat = new THREE.ShaderMaterial({
+    uniforms:{uSun:{value:sunDir}},
+    vertexShader:aVert, fragmentShader:aFrag,
+    transparent:true, depthWrite:false,
+    side:THREE.BackSide, blending:THREE.AdditiveBlending,
+});
+scene.add(new THREE.Mesh(new THREE.SphereGeometry(1.048,64,40), atmMat));
+
+// ── Stars ──
+{
+    const sg = new THREE.BufferGeometry();
+    const n=3200, p=new Float32Array(n*3);
+    for(let i=0;i<n*3;i++) p[i]=(Math.random()-.5)*180;
+    sg.setAttribute('position',new THREE.BufferAttribute(p,3));
+    scene.add(new THREE.Points(sg,new THREE.PointsMaterial({
+        color:0xffffff,size:.16,sizeAttenuation:true,transparent:true,opacity:.65
+    })));
+}
+
+// ── Post ──
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene,camera));
+composer.addPass(new UnrealBloomPass(new THREE.Vector2(innerWidth,innerHeight),.26,.5,.82));
+
+// ══════════════════════════════════════════════════════════
+// UI
+// ══════════════════════════════════════════════════════════
+const elC  = document.getElementById('sC');
+const elW  = document.getElementById('sW');
+const elCl = document.getElementById('sCl');
+const popup = document.getElementById('popup');
+const toast  = document.getElementById('toast');
+let popTimer, completeDone=false;
+
+function refresh(){
+    elC.textContent  = activeCount;
+    elW.textContent  = waterStep;
+    elCl.textContent = cloudStep;
+    document.getElementById('btnC').classList.toggle('disabled',activeCount>=N);
+    document.getElementById('btnW').classList.toggle('disabled',waterStep>=WMAX);
+    document.getElementById('btnCl').classList.toggle('disabled',cloudStep>=CMAX);
+    if(!completeDone&&activeCount>=N&&waterStep>=WMAX&&cloudStep>=CMAX){
+        completeDone=true;
+        showToast('🌍 ちきゅうのかんせい！','すべてのくにとうみとくもができた！',3800);
+    }
+}
+
+function showPopup(txt,clr){
+    popup.textContent=txt; popup.style.color=clr;
+    popup.classList.add('show');
+    clearTimeout(popTimer);
+    popTimer=setTimeout(()=>popup.classList.remove('show'),2200);
+}
+
+function showToast(t,s,ms){
+    document.getElementById('tTitle').textContent=t;
+    document.getElementById('tSub').textContent=s;
+    toast.classList.add('show');
+    setTimeout(()=>toast.classList.remove('show'),ms);
+}
+
+document.getElementById('btnC').addEventListener('click',()=>{
+    if(activeCount>=N) return;
+
+    // ── Place new continent at a random sphere position ──
+    const sv = randSphereVec();
+    seeds[activeCount].copy(sv);
+
+    // Random size — kept modest so islands stay distinct and don't merge into one big blob
+    // In (1-dot) angular space: 0.08 ≈ small island, 0.20 ≈ large continent
+    const r = 0.08 + Math.random() * 0.13;
+    landR[activeCount] = r;
+    landW[activeCount] = 0;       // will rise from 0 → 1
+    active[activeCount] = 1.0;
+
+    // Kick off rise animation
+    landAnims.push({idx:activeCount, t0:performance.now()});
+    activeCount++;
+
+    // Label by size
+    const label = r > 0.17 ? 'たいりく' : r > 0.12 ? 'くに' : 'しま';
+    const c = COUNTRIES[activeCount-1];
+    const col = `rgb(${Math.round(c[3]*255)},${Math.round(c[4]*255)},${Math.round(c[5]*255)})`;
+    showPopup(`🌋 あたらしい ${label} が うまれた！`, col);
+    playLandSE();
+    refresh();
+});
+
+document.getElementById('btnW').addEventListener('click',()=>{
+    if(waterStep>=WMAX) return;
+    waterStep++;
+    earthMat.uniforms.uWater.value=wLevel();
+    showPopup('🌊 うみが ひろがった！','#5ec8f2');
+    refresh();
+});
+
+document.getElementById('btnCl').addEventListener('click',()=>{
+    if(cloudStep>=CMAX) return;
+    cloudStep++;
+    cloudMat.uniforms.uDensity.value=cDens();
+    showPopup('☁️ くもが ふえた！','#b8ccf0');
+    refresh();
+});
+
+document.getElementById('btnR').addEventListener('click',()=>{
+    activeCount=0; waterStep=1; cloudStep=1; completeDone=false;
+    for(let i=0;i<N;i++){ active[i]=0; landW[i]=0; }
+    landAnims=[];
+    earthMat.uniforms.uWater.value=wLevel();
+    cloudMat.uniforms.uDensity.value=cDens();
+    showPopup('🔄 リセット！','rgba(255,255,255,.6)');
+    refresh();
+});
+
+refresh();
+
+// ══════════════════════════════════════════════════════════
+// CONTINENT RISE ANIMATION  (updates landW[i] each frame)
+// ══════════════════════════════════════════════════════════
+function tickLandAnims() {
+    const now = performance.now();
+    let dirty = false;
+    landAnims = landAnims.filter(a => {
+        const t = Math.min(1, (now - a.t0) / 1600); // 1.6s rise
+        const w = t * t * (3 - 2*t);                // smoothstep ease
+        landW[a.idx] = w;
+        dirty = true;
+        return t < 1;
+    });
+    // Three.js re-uploads typed arrays automatically when referenced as uniform value
+}
+
+// ══════════════════════════════════════════════════════════
+// LAND SOUND EFFECT  — deep rumble + ascending sparkle
+// ══════════════════════════════════════════════════════════
+let _seCtx = null;
+function playLandSE() {
+    try {
+        if (!_seCtx) _seCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const ctx = _seCtx;
+        const now = ctx.currentTime;
+
+        // Low continental rumble
+        const rumble = ctx.createOscillator();
+        const rg = ctx.createGain();
+        rumble.connect(rg); rg.connect(ctx.destination);
+        rumble.type = 'sawtooth';
+        rumble.frequency.setValueAtTime(52, now);
+        rumble.frequency.exponentialRampToValueAtTime(108, now + 0.7);
+        rg.gain.setValueAtTime(0.16, now);
+        rg.gain.exponentialRampToValueAtTime(0.001, now + 1.1);
+        rumble.start(now); rumble.stop(now + 1.1);
+
+        // Ascending magic arpeggio (C major pentatonic)
+        [523, 659, 784, 988, 1175].forEach((freq, i) => {
+            const t = now + i * 0.075;
+            const o = ctx.createOscillator();
+            const g = ctx.createGain();
+            o.connect(g); g.connect(ctx.destination);
+            o.type = 'sine';
+            o.frequency.value = freq;
+            g.gain.setValueAtTime(0, t);
+            g.gain.linearRampToValueAtTime(0.13, t + 0.018);
+            g.gain.exponentialRampToValueAtTime(0.001, t + 0.28);
+            o.start(t); o.stop(t + 0.28);
+        });
+    } catch(e) {}
+}
+
+// ══════════════════════════════════════════════════════════
+// BGM
+// ══════════════════════════════════════════════════════════
+(function(){
+    const bgm = document.getElementById('bgm');
+    const btn = document.getElementById('soundBtn');
+    bgm.volume = 0.5;
+    let started = false;
+    let muted   = false;
+
+    function startBgm() {
+        if (started) return;
+        started = true;
+        bgm.play().catch(() => {});
+    }
+
+    // 最初のタップ/クリックで再生開始（ブラウザの自動再生制限対応）
+    document.addEventListener('pointerdown', startBgm, { once: true });
+    document.addEventListener('touchstart',  startBgm, { once: true, passive: true });
+
+    // タブ非表示時は一時停止
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) { bgm.pause(); }
+        else if (started && !muted) { bgm.play().catch(() => {}); }
+    });
+
+    btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        startBgm();
+        muted = !muted;
+        bgm.muted = muted;
+        btn.textContent = muted ? '🔇' : '🔊';
+        btn.classList.toggle('muted', muted);
+    });
+})();
+
+// ══════════════════════════════════════════════════════════
+// RESIZE
+// ══════════════════════════════════════════════════════════
+window.addEventListener('resize',()=>{
+    camera.aspect=innerWidth/innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth,innerHeight);
+    composer.setSize(innerWidth,innerHeight);
+});
+
+// ══════════════════════════════════════════════════════════
+// LOOP
+// ══════════════════════════════════════════════════════════
+const clk = new THREE.Clock();
+(function loop(){
+    requestAnimationFrame(loop);
+    const t=clk.getElapsedTime();
+    sunAngle+=.00025;
+    sunDir.set(Math.cos(sunAngle)*.85,.28,Math.sin(sunAngle)*.85).normalize();
+    earthMat.uniforms.uTime.value=t;
+    cloudMat.uniforms.uTime.value=t;
+    clouds.rotation.y=t*.0075;
+    tickLandAnims();   // animate continent rise weights
+    controls.update();
+    composer.render();
+})();
+</script>
+</body>
+</html>

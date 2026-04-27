@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>ひかりのとり 🐦</title>
+    <style>
+        *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+        body {
+            background:#010c05; overflow:hidden;
+            font-family:'Hiragino Maru Gothic ProN','Rounded Mplus 1c',sans-serif;
+            touch-action:none; user-select:none; -webkit-user-select:none;
+        }
+        #c { position:fixed; inset:0; display:block; width:100%; height:100%; }
+        #ui { position:fixed; inset:0; pointer-events:none; z-index:10; }
+
+        #score-wrap {
+            position:absolute; top:1.4rem; left:50%; transform:translateX(-50%);
+            text-align:center;
+        }
+        #score {
+            font-size:clamp(2.5rem,8vw,4rem); font-weight:900;
+            color:#fff; line-height:1;
+            text-shadow: 0 0 20px rgba(0,255,136,0.9), 0 0 60px rgba(0,255,136,0.4);
+        }
+        #best-txt {
+            font-size:0.75rem; color:rgba(255,255,255,0.4);
+            letter-spacing:0.12em; text-transform:uppercase; margin-top:0.2rem;
+        }
+
+        #back-btn {
+            position:absolute; top:1rem; left:1rem; z-index:50;
+            background:rgba(0,255,136,0.08); border:1px solid rgba(0,255,136,0.2);
+            border-radius:100px; padding:0.35rem 1rem;
+            font-size:0.75rem; color:rgba(255,255,255,0.7);
+            text-decoration:none; pointer-events:auto; transition:background 0.2s;
+        }
+        #back-btn:hover { background:rgba(0,255,136,0.18); }
+
+        .panel {
+            position:absolute; inset:0;
+            display:flex; flex-direction:column; align-items:center; justify-content:center;
+            gap:2rem; pointer-events:auto;
+        }
+        .panel-title {
+            font-family: 'Hiragino Sans', 'Yu Gothic', 'Noto Sans JP', sans-serif;
+            font-size: clamp(3rem, 12vw, 6.5rem);
+            font-weight: 200;
+            color: #fff;
+            text-align: center;
+            letter-spacing: 0.22em;
+            line-height: 1.35;
+            text-shadow:
+                0 0 60px rgba(180, 255, 220, 0.18),
+                0 0 120px rgba(180, 255, 220, 0.08);
+        }
+        .panel-divider {
+            width: clamp(60px, 15vw, 120px);
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(180,255,220,0.4), transparent);
+        }
+        .panel-sub {
+            font-family: 'Hiragino Sans', 'Yu Gothic', 'Noto Sans JP', sans-serif;
+            font-size: clamp(0.65rem, 1.8vw, 0.82rem);
+            font-weight: 300;
+            color: rgba(255,255,255,0.38);
+            letter-spacing: 0.32em;
+            text-transform: uppercase;
+            animation: blink 2.2s ease-in-out infinite;
+        }
+        @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.25} }
+
+        .panel-btn {
+            background:linear-gradient(135deg,#00cc66,#00aa44);
+            border:none; border-radius:100px;
+            padding:0.7rem 2.5rem; font-size:1rem; font-weight:700; color:#fff;
+            cursor:pointer; font-family:inherit; pointer-events:auto;
+            box-shadow: 0 0 30px rgba(0,255,136,0.5);
+            transition:all 0.2s;
+        }
+        .panel-btn:hover { transform:scale(1.06); filter:brightness(1.1); }
+
+        .score-display { font-size:1rem; color:rgba(255,255,255,0.6); }
+        .score-display span { color:#00ff88; font-weight:700; font-size:1.4rem; }
+
+        #flash {
+            position:absolute; inset:0; background:rgba(255,50,50,0);
+            pointer-events:none; transition:background 0.08s;
+        }
+        #flash.on { background:rgba(255,50,50,0.3); }
+
+        #diff {
+            position:absolute; bottom:1rem; left:50%; transform:translateX(-50%);
+            font-size:0.65rem; color:rgba(0,255,136,0.4);
+            letter-spacing:0.15em; text-transform:uppercase;
+        }
+
+        .sound-btn {
+            position:fixed; top:1.1rem; right:1.4rem; z-index:100;
+            width:42px; height:42px; border-radius:50%;
+            background:rgba(0,255,136,0.08);
+            border:1px solid rgba(0,255,136,0.2);
+            color:#fff; font-size:1.15rem; cursor:pointer;
+            display:flex; align-items:center; justify-content:center;
+            transition:background 0.2s, transform 0.15s;
+        }
+        .sound-btn:hover { background:rgba(0,255,136,0.18); transform:scale(1.08); }
+        .sound-btn.muted { opacity:0.4; }
+
+    </style>
+</head>
+<body>
+<audio id="bgm" src="lumibird-bgm.mp3" loop preload="auto"></audio>
+<button class="sound-btn" id="soundBtn">🔊</button>
+<canvas id="c"></canvas>
+
+<div id="ui">
+    <a href="index.html" id="back-btn">← もどる</a>
+    <div id="flash"></div>
+
+    <div id="score-wrap" style="display:none">
+        <div id="score">0</div>
+        <div id="best-txt">BEST: <span id="best-disp">0</span></div>
+    </div>
+
+    <div class="panel" id="panel-start">
+        <div class="panel-title">LUMI<br>BIRD</div>
+        <div class="panel-divider"></div>
+        <div class="panel-sub">タップ / スペースでとぶ</div>
+    </div>
+
+    <div class="panel" id="panel-over" style="display:none">
+        <div class="panel-title">GAME<br>OVER</div>
+        <div class="score-display">スコア <span id="over-score">0</span></div>
+        <div class="score-display" style="font-size:0.85rem">ベスト <span id="over-best">0</span></div>
+        <button class="panel-btn" id="retry-btn">もういちど！</button>
+    </div>
+
+    <div id="diff"></div>
+</div>
+
+<script type="importmap">
+{
+    "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.161.0/examples/jsm/"
+    }
+}
+</script>
+
+<script type="module">
+import * as THREE          from 'three';
+import { EffectComposer }  from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass }      from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass }      from 'three/addons/postprocessing/OutputPass.js';
+
+// ═══════════════════════════════════════════════════════════
+//  定数
+// ═══════════════════════════════════════════════════════════
+const GRAVITY       = -0.013;
+const JUMP_V        =  0.19;
+const BIRD_R        =  0.5;
+const BAR_HALF_W    =  0.45;   // バーの幅（X方向）衝突半径
+const PIPE_GAP_BASE =  3.0;
+const PIPE_SPD_BASE =  0.055;
+const Y_MIN         = -5.3;
+const Y_MAX         =  5.3;
+
+// ═══════════════════════════════════════════════════════════
+//  Renderer
+// ═══════════════════════════════════════════════════════════
+const canvas   = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.toneMapping         = THREE.ReinhardToneMapping;
+renderer.toneMappingExposure = 1.35;
+renderer.shadowMap.enabled   = false;
+
+// ═══════════════════════════════════════════════════════════
+//  Scene / Camera
+// ═══════════════════════════════════════════════════════════
+const scene  = new THREE.Scene();
+scene.background = new THREE.Color(0x010c05);
+scene.fog        = new THREE.FogExp2(0x010c05, 0.030);
+
+const camera = new THREE.PerspectiveCamera(46, innerWidth / innerHeight, 0.1, 140);
+camera.position.set(0, 0, 17);
+
+function onResize() {
+    renderer.setSize(innerWidth, innerHeight);
+    camera.aspect = innerWidth / innerHeight;
+    camera.updateProjectionMatrix();
+    composer.setSize(innerWidth, innerHeight);
+}
+addEventListener('resize', onResize);
+
+// ═══════════════════════════════════════════════════════════
+//  Post-processing（Unreal Bloom）
+// ═══════════════════════════════════════════════════════════
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const bloom = new UnrealBloomPass(
+    new THREE.Vector2(innerWidth, innerHeight),
+    1.2, 0.60, 0.20
+);
+composer.addPass(bloom);
+composer.addPass(new OutputPass());
+
+// ═══════════════════════════════════════════════════════════
+//  ライティング（hemisphere light example 準拠）
+// ═══════════════════════════════════════════════════════════
+// 空 = 深い夜の森緑 / 地面 = 暗い紫
+const hemiLight = new THREE.HemisphereLight(0x0a2e18, 0x1a0530, 1.8);
+scene.add(hemiLight);
+
+// 月光（左斜め上、寒色）
+const dirLight = new THREE.DirectionalLight(0xbbeedd, 1.8);
+dirLight.position.set(-5, 10, 5);
+scene.add(dirLight);
+
+// 生物発光グリーン（奥から）
+const forestPL = new THREE.PointLight(0x00ff88, 2.0, 35);
+forestPL.position.set(-12, 2, -3);
+scene.add(forestPL);
+
+// 紫のアクセント
+const purplePL = new THREE.PointLight(0x8833ff, 1.6, 28);
+purplePL.position.set(12, 4, -5);
+scene.add(purplePL);
+
+// ═══════════════════════════════════════════════════════════
+//  背景：低ポリゴン森
+// ═══════════════════════════════════════════════════════════
+// 地面
+(function() {
+    const geo = new THREE.PlaneGeometry(110, 22, 30, 10);
+    const pos = geo.attributes.position;
+    for (let i = 0; i < pos.count; i++) pos.setZ(i, (Math.random()-.5)*1.2);
+    geo.computeVertexNormals();
+    const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({
+        color:0x041c0e, emissive:0x001808, emissiveIntensity:0.3,
+        roughness:1, flatShading:true }));
+    m.rotation.x = -Math.PI/2; m.position.y = Y_MIN;
+    scene.add(m);
+})();
+
+// 天井キャノピー
+(function() {
+    const geo = new THREE.PlaneGeometry(110, 18, 30, 10);
+    const pos = geo.attributes.position;
+    for (let i = 0; i < pos.count; i++) pos.setZ(i, (Math.random()-.5)*1.8);
+    geo.computeVertexNormals();
+    const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({
+        color:0x021408, emissive:0x003318, emissiveIntensity:0.2,
+        roughness:1, flatShading:true, side:THREE.DoubleSide }));
+    m.rotation.x = Math.PI/2; m.position.y = Y_MAX;
+    scene.add(m);
+})();
+
+// 背景ポリゴン木（スクロール用）
+function mkBgTree(x, z, h) {
+    const g   = new THREE.Group();
+    const hue = 0.37 + Math.random()*.05;
+    const mat = new THREE.MeshStandardMaterial({
+        color: new THREE.Color().setHSL(hue,.5,.07),
+        emissive: new THREE.Color().setHSL(hue,1,.04),
+        emissiveIntensity:.4, roughness:.95, flatShading:true });
+    // 幹
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(h*.05,h*.08,h*.3,4), mat);
+    trunk.position.set(0, Y_MIN+h*.15, 0);
+    g.add(trunk);
+    // 葉レイヤー
+    [0,1,2].forEach(i => {
+        const r = h*(.28-i*.06), ch = h*(.44-i*.04);
+        const cone = new THREE.Mesh(new THREE.ConeGeometry(r,ch,4+i%2), mat);
+        cone.position.y = Y_MIN + h*(.33+i*.27);
+        cone.rotation.y = Math.random()*Math.PI;
+        g.add(cone);
+    });
+    g.position.set(x, 0, z);
+    return g;
+}
+const BGT = [];
+const SPACING = 14, CNT = 12;
+for (let i = 0; i < CNT; i++) {
+    [-9,-13].forEach((z,li) => {
+        const t = mkBgTree((i-CNT/2)*SPACING+(Math.random()-.5)*5, z-Math.random()*3, 2.5+Math.random()*2);
+        scene.add(t);
+        BGT.push({ mesh:t, spd: li===0 ? .006 : .012 });
+    });
+}
+
+// ホタル
+const FIREFLIES = [];
+for (let i = 0; i < 14; i++) {
+    const hue = .32+Math.random()*.14;
+    const pl  = new THREE.PointLight(new THREE.Color().setHSL(hue,1,.5), .4+Math.random()*.5, 3.5);
+    pl.position.set((Math.random()-.5)*50, Y_MIN+.5+Math.random()*(Y_MAX-Y_MIN)*.55, (Math.random()-.5)*3);
+    scene.add(pl);
+    FIREFLIES.push({ pl, bx:pl.position.x, by:pl.position.y, ph:Math.random()*Math.PI*2 });
+}
+
+// ═══════════════════════════════════════════════════════════
+//  鳥：ローポリ カラス
+// ═══════════════════════════════════════════════════════════
+function createBird() {
+    const g = new THREE.Group();
+
+    // 黒ローポリマテリアル（flatShading で三角ポリゴンを強調）
+    const bodyMat = new THREE.MeshStandardMaterial({
+        color: 0x222233, emissive: 0x1a3060,
+        emissiveIntensity: 1.2,
+        roughness: 0.6, metalness: 0.4,
+        flatShading: true,
+    });
+    const wingMat = new THREE.MeshStandardMaterial({
+        color: 0x1a1a2a, emissive: 0x102040,
+        emissiveIntensity: 1.0,
+        roughness: 0.65, metalness: 0.3,
+        flatShading: true, side: THREE.DoubleSide,
+    });
+    const eyeMat = new THREE.MeshStandardMaterial({
+        color: 0xaaddff, emissive: 0x55aaff,
+        emissiveIntensity: 8.0,
+    });
+
+    // 胴体（IcosahedronGeometry でローポリ感）
+    const body = new THREE.Mesh(new THREE.IcosahedronGeometry(0.54, 1), bodyMat);
+    body.scale.set(1.35, 0.92, 0.78);
+    g.add(body);
+
+    // 頭
+    const head = new THREE.Mesh(new THREE.IcosahedronGeometry(0.27, 1), bodyMat);
+    head.position.set(0.55, 0.32, 0);
+    g.add(head);
+
+    // くちばし（4角錐）
+    const beak = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.46, 4), bodyMat);
+    beak.rotation.z = -Math.PI / 2;
+    beak.position.set(0.92, 0.28, 0);
+    g.add(beak);
+
+    // 目（青白く光る）
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.057, 6, 4), eyeMat);
+    eye.position.set(0.66, 0.40, 0.13);
+    g.add(eye);
+
+    // 尾羽（ローポリ角張った楔形）
+    const ts = new THREE.Shape();
+    ts.moveTo(0,  0.20);
+    ts.lineTo(-0.60,  0.36);
+    ts.lineTo(-0.92,  0.06);
+    ts.lineTo(-0.60, -0.30);
+    ts.lineTo(0, -0.14);
+    ts.closePath();
+    const tail = new THREE.Mesh(new THREE.ShapeGeometry(ts, 2), wingMat);
+    tail.position.set(-0.52, -0.04, 0);
+    g.add(tail);
+
+    // 翼（大きな角張った羽根形、上下に羽ばたく）
+    const makeWingShape = () => {
+        const ws = new THREE.Shape();
+        ws.moveTo(0,   0);
+        ws.lineTo( 0.18,  0.72);
+        ws.lineTo( 0.04,  1.40);
+        ws.lineTo(-0.28,  1.18);
+        ws.lineTo(-0.22,  0.46);
+        ws.closePath();
+        return new THREE.ShapeGeometry(ws, 1);
+    };
+
+    // 左翼ピボット
+    const lwp = new THREE.Group();
+    lwp.position.set(0, 0.04, 0.44);
+    lwp.rotation.y = -Math.PI / 2;
+    lwp.add(new THREE.Mesh(makeWingShape(), wingMat));
+    g.add(lwp);
+    g.userData.lwp = lwp;
+
+    // 右翼ピボット（左右対称）
+    const rwp = new THREE.Group();
+    rwp.position.set(0, 0.04, -0.44);
+    rwp.rotation.y = Math.PI / 2;
+    const rwMesh = new THREE.Mesh(makeWingShape(), wingMat);
+    rwMesh.scale.x = -1;
+    rwp.add(rwMesh);
+    g.add(rwp);
+    g.userData.rwp = rwp;
+
+    return g;
+}
+
+const birdGroup = createBird();
+scene.add(birdGroup);
+
+// オーラライト（青白・森の月光）
+const birdLight = new THREE.PointLight(0x66bbff, 3.5, 7);
+birdGroup.add(birdLight);
+
+let flapPhase = 0;
+
+// ═══════════════════════════════════════════════════════════
+//  障害物：シンプルな光る棒
+// ═══════════════════════════════════════════════════════════
+const BAR_W = 0.88;   // バー幅（X方向）
+const BAR_D = 0.88;   // バー奥行き（Z方向）
+const GLOW_DUR = 0.7; // 光る時間（秒）
+
+function makeBarMat() {
+    return new THREE.MeshStandardMaterial({
+        color:            0x0a4422,
+        emissive:         new THREE.Color(0x00ff88),
+        emissiveIntensity: 0.25,
+        roughness: 0.4,
+        metalness: 0.5,
+    });
+}
+
+function spawnBar(gapY, gap) {
+    const group = new THREE.Group();
+
+    // 上バー（天井→ gap上端）
+    const topH   = Y_MAX - (gapY + gap / 2);
+    const topMat = makeBarMat();
+    const topBar = new THREE.Mesh(new THREE.BoxGeometry(BAR_W, topH, BAR_D), topMat);
+    topBar.position.y = gapY + gap / 2 + topH / 2;
+    group.add(topBar);
+
+    // 下バー（Y_MIN → gap下端）
+    const botH   = (gapY - gap / 2) - Y_MIN;
+    const botMat = makeBarMat();
+    const botBar = new THREE.Mesh(new THREE.BoxGeometry(BAR_W, botH, BAR_D), botMat);
+    botBar.position.y = Y_MIN + botH / 2;
+    group.add(botBar);
+
+    // gap中心のグロー光（通過時に爆発）
+    const gapPL = new THREE.PointLight(0x00ff88, 0.6, 8);
+    gapPL.position.y = gapY;
+    group.add(gapPL);
+
+    // gap端のマーカー（小さな光球）
+    const mkr = m => new THREE.Mesh(
+        new THREE.SphereGeometry(0.12, 8, 6),
+        new THREE.MeshStandardMaterial({ color:0x00ff88, emissive:0x00ff88, emissiveIntensity:1.5 })
+    );
+    const topMkr = mkr(); topMkr.position.y = gapY + gap/2; group.add(topMkr);
+    const botMkr = mkr(); botMkr.position.y = gapY - gap/2; group.add(botMkr);
+
+    group.position.x = 14;
+    scene.add(group);
+
+    return {
+        mesh: group, x: 14, gapY, gap, scored: false,
+        topBar, botBar, topMat, botMat, gapPL,
+        glowTimer: 0
+    };
+}
+
+// ═══════════════════════════════════════════════════════════
+//  ゲーム状態
+// ═══════════════════════════════════════════════════════════
+let state   = 'idle';
+let birdY   = 0, birdVel = 0;
+let score   = 0;
+let best    = parseInt(localStorage.getItem('flappyBest') || '0');
+let frame   = 0;
+let pipes   = [];
+let flapPh  = 0;
+
+function getDiff() {
+    const s = Math.min(score, 30);
+    return {
+        speed:    PIPE_SPD_BASE + s * 0.003,
+        gap:      Math.max(PIPE_GAP_BASE - s * 0.04, 2.0),
+        interval: Math.max(135 - s * 2, 88),
+    };
+}
+
+// ═══════════════════════════════════════════════════════════
+//  ゲーム制御
+// ═══════════════════════════════════════════════════════════
+function startGame() {
+    state = 'playing';
+    birdY = 0; birdVel = 0; score = 0; frame = 0;
+    birdGroup.position.set(0, 0, 0);
+    birdGroup.rotation.set(0, 0, 0);
+    pipes.forEach(p => scene.remove(p.mesh));
+    pipes = [];
+    document.getElementById('panel-start').style.display = 'none';
+    document.getElementById('panel-over').style.display  = 'none';
+    document.getElementById('score-wrap').style.display  = 'block';
+    document.getElementById('score').textContent = '0';
+    document.getElementById('best-disp').textContent = best;
+    document.getElementById('diff').textContent = '';
+}
+
+function flap() {
+    if (state === 'dead') return;
+    if (state === 'idle') startGame();
+    birdVel = JUMP_V; flapPh = 0;
+    playFlap();
+}
+
+function die() {
+    if (state === 'dead') return;
+    state = 'dead';
+    if (score > best) { best = score; localStorage.setItem('flappyBest', best); }
+
+    const fl = document.getElementById('flash');
+    fl.classList.add('on');
+    setTimeout(() => fl.classList.remove('on'), 150);
+    setTimeout(() => fl.classList.add('on'),    250);
+    setTimeout(() => fl.classList.remove('on'), 400);
+
+    playDeath();
+    setTimeout(() => {
+        document.getElementById('score-wrap').style.display = 'none';
+        document.getElementById('over-score').textContent   = score;
+        document.getElementById('over-best').textContent    = best;
+        document.getElementById('panel-over').style.display = 'flex';
+    }, 1200);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  物理
+// ═══════════════════════════════════════════════════════════
+function updatePhysics() {
+    // デモ用：window.DEMO_Y を設定するとその高さで固定
+    if (typeof window.DEMO_Y === 'number') {
+        birdY = window.DEMO_Y;
+        birdGroup.position.y = birdY;
+        birdGroup.rotation.z = 0.15;
+        return;
+    }
+    if (state === 'idle') {
+        birdY = Math.sin(Date.now() * 0.001) * 0.5;
+        birdGroup.position.y = birdY;
+        birdGroup.rotation.z = Math.sin(Date.now() * 0.0015) * 0.1;
+        return;
+    }
+    if (state === 'dead') {
+        birdVel += GRAVITY * 1.5;
+        birdY   += birdVel;
+        birdGroup.position.y = birdY;
+        birdGroup.rotation.z -= 0.07;
+        return;
+    }
+    birdVel = Math.max(birdVel + GRAVITY, -0.3);
+    birdY  += birdVel;
+    birdGroup.position.y = birdY;
+    birdGroup.rotation.z = THREE.MathUtils.clamp(birdVel * 3.5, -1.3, 0.7);
+
+    if (birdY < Y_MIN || birdY > Y_MAX) die();
+}
+
+// ═══════════════════════════════════════════════════════════
+//  衝突・スコア
+// ═══════════════════════════════════════════════════════════
+function checkCollision() {
+    if (state !== 'playing') return;
+
+    for (const p of pipes) {
+        // X重なり確認
+        if (Math.abs(p.x) > BAR_HALF_W + BIRD_R + 0.3) continue;
+
+        const topEdge = p.gapY + p.gap / 2;
+        const botEdge = p.gapY - p.gap / 2;
+
+        // Y衝突
+        if (birdY + BIRD_R > topEdge || birdY - BIRD_R < botEdge) {
+            die(); return;
+        }
+
+        // 通過 → スコア加算 + バー発光トリガー
+        if (!p.scored && p.x < -BIRD_R) {
+            p.scored = true;
+            p.glowTimer = GLOW_DUR;
+            score++;
+            document.getElementById('score').textContent = score;
+            playScore();
+            const d = getDiff();
+            document.getElementById('diff').textContent =
+                `SPEED ×${(d.speed / PIPE_SPD_BASE).toFixed(1)}`;
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  バー発光アニメーション
+// ═══════════════════════════════════════════════════════════
+function updateBarGlow(dt) {
+    pipes.forEach(p => {
+        if (p.glowTimer > 0) {
+            p.glowTimer = Math.max(0, p.glowTimer - dt);
+            // sin曲線で 0→ピーク→0
+            const progress = 1 - p.glowTimer / GLOW_DUR;
+            const g = Math.sin(progress * Math.PI);
+
+            p.topMat.emissiveIntensity = 0.25 + g * 5.5;
+            p.botMat.emissiveIntensity = 0.25 + g * 5.5;
+            p.gapPL.intensity          = 0.6  + g * 14.0;
+            p.gapPL.color.setHSL(0.33 + g * 0.05, 1, 0.5);
+        } else if (p.scored) {
+            p.topMat.emissiveIntensity = 0.25;
+            p.botMat.emissiveIntensity = 0.25;
+            p.gapPL.intensity          = 0.6;
+        }
+    });
+}
+
+// ═══════════════════════════════════════════════════════════
+//  音（Web Audio）
+// ═══════════════════════════════════════════════════════════
+let ac;
+function getAC() { return ac || (ac = new (AudioContext || webkitAudioContext)()); }
+
+function playFlap() {
+    try {
+        const a = getAC();
+        [440, 660].forEach((f, i) => {
+            const o = a.createOscillator(), g = a.createGain();
+            o.connect(g); g.connect(a.destination);
+            o.type = 'sine'; o.frequency.value = f;
+            g.gain.setValueAtTime(0.15, a.currentTime + i * 0.04);
+            g.gain.exponentialRampToValueAtTime(0.001, a.currentTime + 0.15 + i * 0.04);
+            o.start(a.currentTime + i * 0.04);
+            o.stop(a.currentTime  + 0.2  + i * 0.04);
+        });
+    } catch(e) {}
+}
+
+function playScore() {
+    try {
+        const a = getAC();
+        const notes = [523, 659, 784, 1047];
+        const n = notes[(score - 1) % notes.length];
+        const o = a.createOscillator(), g = a.createGain();
+        o.connect(g); g.connect(a.destination);
+        o.type = 'sine'; o.frequency.value = n;
+        g.gain.setValueAtTime(0.22, a.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.001, a.currentTime + 0.5);
+        o.start(); o.stop(a.currentTime + 0.5);
+    } catch(e) {}
+}
+
+function playDeath() {
+    try {
+        const a = getAC();
+        const o = a.createOscillator(), g = a.createGain();
+        o.connect(g); g.connect(a.destination);
+        o.type = 'sawtooth';
+        o.frequency.setValueAtTime(400, a.currentTime);
+        o.frequency.exponentialRampToValueAtTime(60, a.currentTime + 0.6);
+        g.gain.setValueAtTime(0.3, a.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.001, a.currentTime + 0.7);
+        o.start(); o.stop(a.currentTime + 0.8);
+    } catch(e) {}
+}
+
+// ═══════════════════════════════════════════════════════════
+//  入力
+// ═══════════════════════════════════════════════════════════
+document.addEventListener('keydown', e => {
+    if (e.code === 'Space') { e.preventDefault(); flap(); }
+});
+document.getElementById('c').addEventListener('pointerdown', flap);
+document.getElementById('retry-btn').addEventListener('click', e => {
+    e.stopPropagation(); startGame(); flap();
+});
+
+// ═══════════════════════════════════════════════════════════
+//  メインループ
+// ═══════════════════════════════════════════════════════════
+const clock = new THREE.Clock();
+
+function tick() {
+    requestAnimationFrame(tick);
+    const dt = Math.min(clock.getDelta(), 0.05);
+    const t  = performance.now() / 1000;
+
+    // 翼アニメーション（プロシージャル）
+    flapPhase += dt * (state === 'playing' ? 4.5 : 2.0);
+    const flapAng = Math.sin(flapPhase) * 0.55;
+    if (birdGroup.userData.lwp) birdGroup.userData.lwp.rotation.z =  flapAng;
+    if (birdGroup.userData.rwp) birdGroup.userData.rwp.rotation.z = -flapAng;
+
+    // 障害物移動
+    if (state === 'playing') {
+        const d = getDiff();
+        pipes.forEach(p => {
+            p.x -= d.speed;
+            p.mesh.position.x = p.x;
+        });
+        pipes = pipes.filter(p => {
+            if (p.x < -18) { scene.remove(p.mesh); return false; }
+            return true;
+        });
+
+        // スポーン
+        if (frame > 60 && frame % Math.round(d.interval) === 0) {
+            const gapY = (Math.random() * 2 - 1) * (Y_MAX * 0.58);
+            pipes.push(spawnBar(gapY, d.gap));
+        }
+        frame++;
+    }
+
+    // 背景ツリーのパラックススクロール
+    if (state === 'playing') {
+        const speed = getDiff().speed;
+        BGT.forEach(c => {
+            c.mesh.position.x -= speed * c.spd / PIPE_SPD_BASE;
+            const hw = SPACING * CNT / 2;
+            if (c.mesh.position.x < -hw) c.mesh.position.x += SPACING * CNT;
+        });
+    }
+
+    // 物理・衝突
+    updatePhysics();
+    checkCollision();
+
+    // バー発光
+    updateBarGlow(dt);
+
+    // ライトゆらぎ
+    forestPL.intensity  = 1.8 + Math.sin(t * 1.1) * 0.4;
+    purplePL.intensity  = 1.4 + Math.sin(t * 1.6 + 1.5) * 0.35;
+    birdLight.intensity = 2.0 + Math.sin(t * 3.0) * 0.5;
+    birdLight.color.setHSL(0.58 + Math.sin(t * 2) * 0.04, 1, 0.72);
+
+    // ホタル
+    FIREFLIES.forEach(f => {
+        f.pl.position.x = f.bx + Math.sin(t * .7 + f.ph) * .8;
+        f.pl.position.y = f.by + Math.sin(t * 1.1 + f.ph) * .5;
+        f.pl.intensity  = .3 + Math.abs(Math.sin(t * 1.8 + f.ph)) * .7;
+    });
+
+    // bloomスコア連動
+    bloom.strength = 1.15 + Math.min(score * 0.028, 0.85);
+
+    composer.render();
+}
+tick();
+
+// ── BGM ──────────────────────────────────────────────────
+(function(){
+    const bgm = document.getElementById('bgm');
+    const btn = document.getElementById('soundBtn');
+    bgm.volume = 0.5;
+    let started = false, muted = false;
+    function startBgm() {
+        if (started) return; started = true;
+        bgm.play().catch(() => {});
+    }
+    document.addEventListener('pointerdown', startBgm, { once: true });
+    document.addEventListener('touchstart',  startBgm, { once: true, passive: true });
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) bgm.pause();
+        else if (started && !muted) bgm.play().catch(() => {});
+    });
+    btn.addEventListener('click', e => {
+        e.stopPropagation(); startBgm();
+        muted = !muted; bgm.muted = muted;
+        btn.textContent = muted ? '🔇' : '🔊';
+        btn.classList.toggle('muted', muted);
+    });
+})();
+</script>
+</body>
+</html>

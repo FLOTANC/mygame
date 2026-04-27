@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>モンスターのはなび</title>
+<style>
+  *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+  body { background:#000; overflow:hidden; touch-action:none; user-select:none;
+         font-family:'Noto Sans JP','Hiragino Sans',sans-serif; }
+  #c { position:fixed; inset:0; width:100%; height:100%; display:block; cursor:crosshair; }
+
+  #back-btn {
+    position:fixed; top:14px; left:14px; z-index:200;
+    background:rgba(255,255,255,.12); border:none; border-radius:50%;
+    width:42px; height:42px; color:#fff; font-size:20px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; backdrop-filter:blur(8px);
+  }
+  .sound-btn {
+    position:fixed; top:14px; right:14px; z-index:200;
+    width:42px; height:42px; border-radius:50%;
+    background:rgba(255,255,255,0.08);
+    border:1px solid rgba(255,255,255,0.15);
+    color:#fff; font-size:1.15rem; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    transition:background 0.2s, transform 0.15s;
+  }
+  .sound-btn:hover { background:rgba(255,255,255,0.18); transform:scale(1.08); }
+  .sound-btn.muted { opacity:0.4; }
+
+  /* ── Palette ── */
+  #palette {
+    position:fixed; bottom:36px; left:50%; transform:translateX(-50%);
+    display:flex; gap:14px; z-index:100; align-items:center;
+  }
+
+  .pal-btn {
+    width: 72px; height: 72px; border-radius: 50%;
+    border: 2.5px solid rgba(255,255,255,0.08);
+    font-size: 0; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all .22s cubic-bezier(.34,1.56,.64,1);
+    position: relative; overflow: hidden;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.06);
+  }
+  .pal-icon { pointer-events: none; overflow: visible; }
+
+  /* テーマ別背景 */
+  .pal-btn[data-mode="rainbow"] { background: radial-gradient(ellipse at 35% 35%, #18101e, #0a080e); }
+  .pal-btn[data-mode="fire"]    { background: radial-gradient(ellipse at 35% 35%, #431407, #1c0800); }
+  .pal-btn[data-mode="sakura"]  { background: radial-gradient(ellipse at 35% 35%, #4a1030, #1a0510); }
+  .pal-btn[data-mode="ice"]     { background: radial-gradient(ellipse at 35% 35%, #0c2a4a, #060e1e); }
+
+  .pal-btn:hover { transform: scale(1.10); filter: brightness(1.15); }
+
+  .pal-btn.active {
+    border-color: #ffffff;
+    transform: scale(1.18);
+    box-shadow:
+      0 0 0 3px rgba(255,255,255,0.9),
+      0 0 22px rgba(255,255,255,0.7),
+      0 0 55px rgba(255,255,255,0.35),
+      0 4px 24px rgba(0,0,0,0.5);
+  }
+
+  #clear-btn {
+    width: 58px; height: 58px; border-radius: 50%;
+    border: 2px solid rgba(255,255,255,0.10);
+    background: radial-gradient(ellipse at 35% 35%, #1e1e2a, #0d0d14);
+    color: rgba(255,255,255,0.5); font-size: 0; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all .2s;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+  }
+  #clear-btn:hover { border-color: rgba(255,255,255,0.4); color:#fff; transform:scale(1.08); }
+
+  /* ── Monster bubble ── */
+  #bubble {
+    position:fixed; right:28px; top:0; z-index:150;
+    background:rgba(255,255,255,.15); backdrop-filter:blur(12px);
+    border:1px solid rgba(255,255,255,.3); border-radius:18px 18px 4px 18px;
+    padding:8px 14px; font-size:15px; color:#fff; white-space:nowrap;
+    opacity:0; transition:opacity .4s; pointer-events:none;
+  }
+  #bubble.show { opacity:1; }
+
+  /* ── Hint ── */
+  #hint {
+    position:fixed; top:18px; left:50%; transform:translateX(-50%);
+    font-size:14px; color:rgba(255,255,255,.55); pointer-events:none;
+    z-index:100; white-space:nowrap;
+  }
+
+  /* ── Intro ── */
+  #intro {
+    position:fixed; inset:0; z-index:300;
+    display:flex; flex-direction:column;
+    align-items:center; justify-content:center;
+    gap: 0;
+    background: radial-gradient(ellipse at 50% 40%, rgba(30,10,60,.98) 0%, rgba(2,4,18,1) 70%);
+    transition:opacity .8s;
+  }
+  #intro.hide { opacity:0; pointer-events:none; }
+
+  .intro-title {
+    font-family: 'Barlow Condensed', 'Impact', 'Arial Narrow', sans-serif;
+    font-size: clamp(4.5rem, 18vw, 10rem);
+    font-weight: 900;
+    font-style: normal;
+    color: #ffffff;
+    letter-spacing: -0.01em;
+    line-height: 0.88;
+    text-align: center;
+    margin-bottom: 6px;
+    text-shadow: none;
+  }
+  .intro-divider {
+    width: clamp(80px, 20vw, 160px);
+    height: 2px;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,.25), transparent);
+    margin: 18px auto 20px;
+  }
+  #intro p {
+    font-size: clamp(0.75rem, 2.2vw, 0.92rem);
+    color: rgba(255,255,255,.45);
+    line-height: 2.0;
+    text-align: center;
+    margin-bottom: 40px;
+    max-width: 300px;
+    letter-spacing: 0.06em;
+  }
+  .color-hint {
+    display: flex; gap: 1.2rem; margin-bottom: 40px;
+    font-size: 0.78rem; color: rgba(255,255,255,.35);
+    letter-spacing: 0.10em;
+  }
+  #start-btn {
+    padding: 14px 56px; border-radius: 50px; border: none;
+    background: linear-gradient(135deg, #f97316, #ec4899, #8b5cf6);
+    color: #fff; font-size: 18px; font-weight: 800; cursor: pointer;
+    box-shadow: 0 0 40px rgba(249,115,22,.5), 0 0 80px rgba(249,115,22,.2);
+    transition: transform .15s, box-shadow .15s;
+    letter-spacing: 0.05em;
+  }
+  #start-btn:hover { box-shadow: 0 0 55px rgba(249,115,22,.7), 0 0 100px rgba(249,115,22,.3); }
+  #start-btn:active { transform: scale(.95); }
+</style>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.161.0/examples/jsm/"
+  }
+}
+</script>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@800;900&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<audio id="bgm" src="monstersparkler-bgm.mp3" loop preload="auto"></audio>
+<button class="sound-btn" id="soundBtn">🔊</button>
+<canvas id="c"></canvas>
+<button id="back-btn" onclick="history.back()">←</button>
+<div id="hint">ゆびでドラッグして花火をかこう！</div>
+
+<div id="palette">
+
+  <!-- ── RAINBOW ── -->
+  <button class="pal-btn active" data-mode="rainbow" title="にじ">
+    <svg class="pal-icon" viewBox="0 0 60 46" xmlns="http://www.w3.org/2000/svg" width="52" height="40">
+      <path d="M4,36 A26,26 0 0,1 56,36" fill="none" stroke="#ff2244" stroke-width="6" stroke-linecap="round" opacity="0.38"/>
+      <path d="M4,36 A26,26 0 0,1 56,36" fill="none" stroke="#ff3355" stroke-width="2.5" stroke-linecap="round"/>
+      <path d="M9,36 A21,21 0 0,1 51,36" fill="none" stroke="#ff8800" stroke-width="6" stroke-linecap="round" opacity="0.38"/>
+      <path d="M9,36 A21,21 0 0,1 51,36" fill="none" stroke="#ff9900" stroke-width="2.5" stroke-linecap="round"/>
+      <path d="M14,36 A16,16 0 0,1 46,36" fill="none" stroke="#ffe000" stroke-width="6" stroke-linecap="round" opacity="0.38"/>
+      <path d="M14,36 A16,16 0 0,1 46,36" fill="none" stroke="#ffee00" stroke-width="2.5" stroke-linecap="round"/>
+      <path d="M19,36 A11,11 0 0,1 41,36" fill="none" stroke="#00ee44" stroke-width="6" stroke-linecap="round" opacity="0.38"/>
+      <path d="M19,36 A11,11 0 0,1 41,36" fill="none" stroke="#00ff55" stroke-width="2.5" stroke-linecap="round"/>
+      <path d="M24,36 A6,6 0 0,1 36,36" fill="none" stroke="#2299ff" stroke-width="6" stroke-linecap="round" opacity="0.38"/>
+      <path d="M24,36 A6,6 0 0,1 36,36" fill="none" stroke="#33aaff" stroke-width="2.5" stroke-linecap="round"/>
+    </svg>
+  </button>
+
+  <!-- ── FIRE ── -->
+  <button class="pal-btn" data-mode="fire" title="ひ">
+    <svg class="pal-icon" viewBox="0 0 60 64" xmlns="http://www.w3.org/2000/svg" width="44" height="48">
+      <!-- glow -->
+      <path d="M30,4 L40,19 L52,14 L45,33 L55,31 L39,52 L30,60 L21,52 L5,31 L15,33 L8,14 L20,19 Z"
+            fill="none" stroke="#ff5500" stroke-width="7" stroke-linejoin="round" opacity="0.3"/>
+      <!-- outline -->
+      <path d="M30,4 L40,19 L52,14 L45,33 L55,31 L39,52 L30,60 L21,52 L5,31 L15,33 L8,14 L20,19 Z"
+            fill="none" stroke="#ff7700" stroke-width="2.2" stroke-linejoin="round"/>
+      <!-- facets -->
+      <line x1="30" y1="4"  x2="39" y2="52" stroke="#ffaa00" stroke-width="1.2" stroke-linecap="round" opacity="0.6"/>
+      <line x1="30" y1="4"  x2="21" y2="52" stroke="#ffaa00" stroke-width="1.2" stroke-linecap="round" opacity="0.6"/>
+      <line x1="20" y1="19" x2="40" y2="19" stroke="#ffaa00" stroke-width="1.2" stroke-linecap="round" opacity="0.5"/>
+      <line x1="15" y1="33" x2="45" y2="33" stroke="#ffaa00" stroke-width="1.2" stroke-linecap="round" opacity="0.5"/>
+      <!-- base glow -->
+      <ellipse cx="30" cy="58" rx="11" ry="5" fill="#ff5500" opacity="0.55"/>
+      <circle  cx="30" cy="58" r="3.5" fill="#ffcc44"/>
+    </svg>
+  </button>
+
+  <!-- ── SAKURA ── -->
+  <button class="pal-btn" data-mode="sakura" title="さくら">
+    <svg class="pal-icon" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg" width="48" height="48">
+      <g transform="translate(30,30)">
+        <!-- petal glow (5×) -->
+        <ellipse cx="0" cy="-15" rx="7.5" ry="13" fill="none" stroke="#ff44aa" stroke-width="6" opacity="0.32" transform="rotate(0)"/>
+        <ellipse cx="0" cy="-15" rx="7.5" ry="13" fill="none" stroke="#ff44aa" stroke-width="6" opacity="0.32" transform="rotate(72)"/>
+        <ellipse cx="0" cy="-15" rx="7.5" ry="13" fill="none" stroke="#ff44aa" stroke-width="6" opacity="0.32" transform="rotate(144)"/>
+        <ellipse cx="0" cy="-15" rx="7.5" ry="13" fill="none" stroke="#ff44aa" stroke-width="6" opacity="0.32" transform="rotate(216)"/>
+        <ellipse cx="0" cy="-15" rx="7.5" ry="13" fill="none" stroke="#ff44aa" stroke-width="6" opacity="0.32" transform="rotate(288)"/>
+        <!-- petal outline (5×) -->
+        <ellipse cx="0" cy="-15" rx="7.5" ry="13" fill="none" stroke="#ff66cc" stroke-width="2" transform="rotate(0)"/>
+        <ellipse cx="0" cy="-15" rx="7.5" ry="13" fill="none" stroke="#ff66cc" stroke-width="2" transform="rotate(72)"/>
+        <ellipse cx="0" cy="-15" rx="7.5" ry="13" fill="none" stroke="#ff66cc" stroke-width="2" transform="rotate(144)"/>
+        <ellipse cx="0" cy="-15" rx="7.5" ry="13" fill="none" stroke="#ff66cc" stroke-width="2" transform="rotate(216)"/>
+        <ellipse cx="0" cy="-15" rx="7.5" ry="13" fill="none" stroke="#ff66cc" stroke-width="2" transform="rotate(288)"/>
+        <!-- petal center vein (5×) -->
+        <line x1="0" y1="-4" x2="0" y2="-26" stroke="#ff88dd" stroke-width="1.2" opacity="0.6" transform="rotate(0)"/>
+        <line x1="0" y1="-4" x2="0" y2="-26" stroke="#ff88dd" stroke-width="1.2" opacity="0.6" transform="rotate(72)"/>
+        <line x1="0" y1="-4" x2="0" y2="-26" stroke="#ff88dd" stroke-width="1.2" opacity="0.6" transform="rotate(144)"/>
+        <line x1="0" y1="-4" x2="0" y2="-26" stroke="#ff88dd" stroke-width="1.2" opacity="0.6" transform="rotate(216)"/>
+        <line x1="0" y1="-4" x2="0" y2="-26" stroke="#ff88dd" stroke-width="1.2" opacity="0.6" transform="rotate(288)"/>
+        <!-- center -->
+        <circle cx="0" cy="0" r="6"   fill="none" stroke="#ff66cc" stroke-width="1.8" opacity="0.9"/>
+        <circle cx="0" cy="0" r="2.8" fill="#ff88dd"/>
+      </g>
+    </svg>
+  </button>
+
+  <!-- ── ICE ── -->
+  <button class="pal-btn" data-mode="ice" title="こおり">
+    <svg class="pal-icon" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg" width="48" height="48">
+      <defs>
+        <g id="sf-arm">
+          <line x1="0" y1="0"   x2="0"  y2="-24" stroke-width="2.2" stroke-linecap="round"/>
+          <line x1="0" y1="-16" x2="-6" y2="-22" stroke-width="1.5" stroke-linecap="round"/>
+          <line x1="0" y1="-16" x2="6"  y2="-22" stroke-width="1.5" stroke-linecap="round"/>
+          <line x1="0" y1="-10" x2="-5" y2="-15" stroke-width="1.5" stroke-linecap="round"/>
+          <line x1="0" y1="-10" x2="5"  y2="-15" stroke-width="1.5" stroke-linecap="round"/>
+        </g>
+      </defs>
+      <g transform="translate(30,30)" stroke="#00ddff" fill="none">
+        <!-- glow -->
+        <use href="#sf-arm" stroke-width="7" opacity="0.28" transform="rotate(0)"/>
+        <use href="#sf-arm" stroke-width="7" opacity="0.28" transform="rotate(60)"/>
+        <use href="#sf-arm" stroke-width="7" opacity="0.28" transform="rotate(120)"/>
+        <use href="#sf-arm" stroke-width="7" opacity="0.28" transform="rotate(180)"/>
+        <use href="#sf-arm" stroke-width="7" opacity="0.28" transform="rotate(240)"/>
+        <use href="#sf-arm" stroke-width="7" opacity="0.28" transform="rotate(300)"/>
+        <!-- arms -->
+        <use href="#sf-arm" transform="rotate(0)"/>
+        <use href="#sf-arm" transform="rotate(60)"/>
+        <use href="#sf-arm" transform="rotate(120)"/>
+        <use href="#sf-arm" transform="rotate(180)"/>
+        <use href="#sf-arm" transform="rotate(240)"/>
+        <use href="#sf-arm" transform="rotate(300)"/>
+        <!-- center hex -->
+        <polygon points="0,-7 6.1,-3.5 6.1,3.5 0,7 -6.1,3.5 -6.1,-3.5" stroke-width="1.8"/>
+      </g>
+    </svg>
+  </button>
+
+  <!-- ── CLEAR ── -->
+  <button id="clear-btn" title="クリア">
+    <svg class="pal-icon" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg" width="34" height="34" opacity="0.65">
+      <rect x="15" y="21" width="30" height="32" rx="3" fill="none" stroke="#bbbbbb" stroke-width="2.5"/>
+      <line x1="9"  y1="21" x2="51" y2="21" stroke="#bbbbbb" stroke-width="2.5" stroke-linecap="round"/>
+      <rect x="22" y="12"  width="16" height="9" rx="2.5" fill="none" stroke="#bbbbbb" stroke-width="2.5"/>
+      <line x1="24" y1="30" x2="24" y2="44" stroke="#bbbbbb" stroke-width="2" stroke-linecap="round"/>
+      <line x1="30" y1="30" x2="30" y2="44" stroke="#bbbbbb" stroke-width="2" stroke-linecap="round"/>
+      <line x1="36" y1="30" x2="36" y2="44" stroke="#bbbbbb" stroke-width="2" stroke-linecap="round"/>
+    </svg>
+  </button>
+
+</div>
+
+<div id="bubble"></div>
+
+<div id="intro">
+  <div class="intro-title">MONSTER<br>SPARKLER</div>
+  <div class="intro-divider"></div>
+  <p>ゆびでなぞると<br>きれいな花火がかけるよ</p>
+  <div class="color-hint">
+    <span>にじ</span><span>/</span>
+    <span>ひ</span><span>/</span>
+    <span>さくら</span><span>/</span>
+    <span>こおり</span>
+  </div>
+  <button id="start-btn">はじめる！</button>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { EffectComposer }  from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass }      from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass }      from 'three/addons/postprocessing/OutputPass.js';
+
+const W = () => window.innerWidth, H = () => window.innerHeight;
+const canvas = document.getElementById('c');
+
+// ─────────────────────────────────────────────
+// RENDERER
+// ─────────────────────────────────────────────
+const renderer = new THREE.WebGLRenderer({ canvas, antialias:true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(W(), H());
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+
+const scene  = new THREE.Scene();
+scene.background = new THREE.Color(0x02040e);
+
+const camera = new THREE.PerspectiveCamera(56, W()/H(), 0.1, 200);
+camera.position.set(0, 0, 13);
+
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const bloom = new UnrealBloomPass(new THREE.Vector2(W(), H()), 1.1, 0.5, 0.90);
+composer.addPass(bloom);
+composer.addPass(new OutputPass());
+
+// ─────────────────────────────────────────────
+// LIGHTING
+// ─────────────────────────────────────────────
+scene.add(new THREE.AmbientLight(0x334455, 1.8));
+const keyLight = new THREE.DirectionalLight(0xfff5e8, 2.2);
+keyLight.position.set(4, 8, 7);
+scene.add(keyLight);
+const fillLight = new THREE.DirectionalLight(0x6090d0, 0.7);
+fillLight.position.set(-5, 2, 3);
+scene.add(fillLight);
+const rimLight = new THREE.DirectionalLight(0xaaddff, 0.5);
+rimLight.position.set(0, -2, -6);
+scene.add(rimLight);
+
+// Dynamic cursor light (follows drawing)
+const cursorLight = new THREE.PointLight(0xffffff, 0, 8);
+scene.add(cursorLight);
+
+// ─────────────────────────────────────────────
+// STARFIELD
+// ─────────────────────────────────────────────
+{
+  const N = 600;
+  const pos = new Float32Array(N * 3);
+  for (let i = 0; i < N; i++) {
+    pos[i*3  ] = (Math.random()-0.5) * 60;
+    pos[i*3+1] = (Math.random()-0.5) * 60;
+    pos[i*3+2] = -20 + Math.random() * -30;
+  }
+  const sg = new THREE.BufferGeometry();
+  sg.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  scene.add(new THREE.Points(sg,
+    new THREE.PointsMaterial({ color:0xffffff, size:0.06, transparent:true, opacity:0.7 })));
+}
+
+// ─────────────────────────────────────────────
+// HELPER
+// ─────────────────────────────────────────────
+function mkMat(col, rough=0.82, emissive=0x000000, eI=0) {
+  return new THREE.MeshStandardMaterial({ color:col, roughness:rough, metalness:0,
+    emissive, emissiveIntensity:eI });
+}
+
+// ─────────────────────────────────────────────
+// 2D MONSTER (Canvas overlay)
+// ─────────────────────────────────────────────
+const MON_SIZE = Math.min(innerWidth * 0.28, 230);
+const monEl = document.createElement('canvas');
+monEl.style.cssText = `
+  position:fixed; bottom:130px; right:28px; z-index:50;
+  pointer-events:none;
+  filter: drop-shadow(0 12px 24px rgba(0,100,60,0.45));
+`;
+const MON_H = Math.round(MON_SIZE * 1.4);
+monEl.width  = MON_SIZE * 2;
+monEl.height = MON_H * 2;
+monEl.style.width  = MON_SIZE + 'px';
+monEl.style.height = MON_H + 'px';
+document.body.appendChild(monEl);
+const mc = monEl.getContext('2d');
+
+// Floating CSS animation
+const monStyle = document.createElement('style');
+monStyle.textContent = `
+  @keyframes monFloat {
+    0%   { transform: translateY(0px)   rotate(-1.2deg); }
+    35%  { transform: translateY(-16px) rotate( 1.0deg); }
+    65%  { transform: translateY(-8px)  rotate(-0.5deg); }
+    100% { transform: translateY(0px)   rotate(-1.2deg); }
+  }
+  #c ~ canvas { animation: monFloat 3.2s ease-in-out infinite; }
+`;
+document.head.appendChild(monStyle);
+
+let monEyeX = 0, monEyeY = 0;
+let monRawMouseX = innerWidth * 0.4, monRawMouseY = innerHeight * 0.5;
+
+document.addEventListener('mousemove', e => { monRawMouseX = e.clientX; monRawMouseY = e.clientY; });
+document.addEventListener('touchmove', e => { monRawMouseX = e.touches[0].clientX; monRawMouseY = e.touches[0].clientY; }, { passive:true });
+
+function drawMonster2D() {
+  const W = monEl.width, H = monEl.height;
+  mc.clearRect(0, 0, W, H);
+
+  const cx = W / 2, cy = H * 0.74;
+  const R  = W * 0.35;
+
+  // Eye tracking
+  const mCX = innerWidth  - MON_SIZE / 2 - 28;
+  const mCY = innerHeight - MON_SIZE / 2 - 28;
+  const dx  = monRawMouseX - mCX, dy = monRawMouseY - mCY;
+  const dl  = Math.sqrt(dx*dx + dy*dy) || 1;
+  const maxOff = R * 0.14;
+  monEyeX += ((dx / dl) * maxOff - monEyeX) * 0.10;
+  monEyeY += ((dy / dl) * maxOff - monEyeY) * 0.10;
+
+  // ── Body (モジャモジャ shaggy fur — bezier tufts) ── [drawn first]
+  const grad = mc.createRadialGradient(cx - R*0.18, cy - R*0.22, R*0.04, cx, cy + R*0.05, R*1.12);
+  grad.addColorStop(0,    '#5de8a8');
+  grad.addColorStop(0.42, '#38c98a');
+  grad.addColorStop(1,    '#155c3a');
+
+  const nT = 15;
+  const segs = [];
+  for (let t = 0; t < nT; t++) {
+    const ta   = (t / nT) * Math.PI * 2 - Math.PI / 2;
+    const span = (Math.PI * 2) / nT;
+    const s1   = Math.sin(t * 47.1 + 0.3) * 0.5 + 0.5;
+    const s2   = Math.sin(t * 31.7 + 2.1) * 0.5 + 0.5;
+    const s3   = Math.sin(t * 19.3 + 4.5) * 0.5 + 0.5;
+    segs.push({
+      valA:  ta,               valR:  R * (0.75 + 0.04 * s3),
+      tip1A: ta + span * 0.28, tip1R: R * (0.98 + 0.17 * s1),
+      midA:  ta + span * 0.50, midR:  R * (0.77 + 0.05 * s2),
+      tip2A: ta + span * 0.72, tip2R: R * (0.94 + 0.17 * s2),
+    });
+  }
+
+  mc.beginPath();
+  mc.moveTo(cx + Math.cos(segs[0].valA) * segs[0].valR,
+            cy + Math.sin(segs[0].valA) * segs[0].valR);
+  for (let t = 0; t < nT; t++) {
+    const s    = segs[t];
+    const next = segs[(t + 1) % nT];
+    const cp = (a, r, boost=1.0) => [cx + Math.cos(a)*r*boost, cy + Math.sin(a)*r*boost];
+    let [cpx,cpy] = cp((s.valA+s.tip1A)/2, s.tip1R, 1.10);
+    mc.quadraticCurveTo(cpx, cpy, cx+Math.cos(s.tip1A)*s.tip1R, cy+Math.sin(s.tip1A)*s.tip1R);
+    [cpx,cpy] = cp((s.tip1A+s.midA)/2, s.midR, 0.92);
+    mc.quadraticCurveTo(cpx, cpy, cx+Math.cos(s.midA)*s.midR, cy+Math.sin(s.midA)*s.midR);
+    [cpx,cpy] = cp((s.midA+s.tip2A)/2, s.tip2R, 1.10);
+    mc.quadraticCurveTo(cpx, cpy, cx+Math.cos(s.tip2A)*s.tip2R, cy+Math.sin(s.tip2A)*s.tip2R);
+    [cpx,cpy] = cp((s.tip2A+next.valA)/2, next.valR, 0.92);
+    mc.quadraticCurveTo(cpx, cpy, cx+Math.cos(next.valA)*next.valR, cy+Math.sin(next.valA)*next.valR);
+  }
+  mc.closePath();
+  mc.fillStyle = grad;
+  mc.fill();
+
+  // ── Ears (drawn AFTER body — distance 1.20*R from center, outside fur max 1.15*R) ──
+  [[-0.42, -1.13], [0.42, -1.13]].forEach(([ex, ey]) => {
+    mc.beginPath();
+    mc.ellipse(cx + ex*R, cy + ey*R, R*0.20, R*0.26, 0, 0, Math.PI*2);
+    mc.fillStyle = '#38c98a';
+    mc.fill();
+    mc.beginPath();
+    mc.ellipse(cx + ex*R, cy + ey*R, R*0.10, R*0.14, 0, 0, Math.PI*2);
+    mc.fillStyle = '#6ef0b8';
+    mc.fill();
+  });
+
+  // ── Eyes (wider apart) ──
+  [[-0.34, -0.06], [0.34, -0.06]].forEach(([ex, ey]) => {
+    const eX = cx + ex*R, eY = cy + ey*R;
+    mc.beginPath();
+    mc.arc(eX, eY, R*0.27, 0, Math.PI*2);
+    mc.fillStyle = '#f5f5f5';
+    mc.fill();
+    mc.beginPath();
+    mc.arc(eX + monEyeX, eY + monEyeY, R*0.17, 0, Math.PI*2);
+    mc.fillStyle = '#0c2818';
+    mc.fill();
+    mc.beginPath();
+    mc.arc(eX + monEyeX + R*0.07, eY + monEyeY - R*0.08, R*0.063, 0, Math.PI*2);
+    mc.fillStyle = '#ffffff';
+    mc.fill();
+  });
+
+  // ── Blush ──
+  [[-0.58, 0.18], [0.58, 0.18]].forEach(([bx, by]) => {
+    mc.save();
+    mc.globalAlpha = 0.36;
+    mc.beginPath();
+    mc.ellipse(cx + bx*R, cy + by*R, R*0.19, R*0.09, 0, 0, Math.PI*2);
+    mc.fillStyle = '#ff8fb0';
+    mc.fill();
+    mc.restore();
+  });
+
+  // ── Mouth with teeth ──
+  const mCy = cy + R*0.30;   // smile arc center y
+  const mR  = R * 0.22;      // smile arc radius
+  const mA0 = 0.18, mA1 = Math.PI - 0.18;
+
+  // Filled mouth interior (arc + closePath = D-shape open mouth)
+  mc.beginPath();
+  mc.arc(cx, mCy, mR, mA0, mA1);
+  mc.closePath();
+  mc.fillStyle = '#0a2a14';
+  mc.fill();
+
+  // Teeth — hang from top of mouth interior
+  const teethTopY = mCy + Math.sin(mA0) * mR;  // y at arc start (top edge of opening)
+  const teethH = mR * 0.58;
+  const teethW = mR * 0.50;
+  [cx - teethW * 0.55, cx + teethW * 0.05].forEach(tx => {
+    mc.beginPath();
+    mc.roundRect(tx, teethTopY, teethW, teethH, mR * 0.12);
+    mc.fillStyle = '#f0f0f0';
+    mc.fill();
+  });
+
+  // Smile arc border on top
+  mc.beginPath();
+  mc.arc(cx, mCy, mR, mA0, mA1);
+  mc.strokeStyle = '#0b3d22';
+  mc.lineWidth   = R * 0.055;
+  mc.lineCap     = 'round';
+  mc.stroke();
+}
+
+// ─────────────────────────────────────────────
+// LINKED PARTICLE TRAIL SYSTEM
+// ─────────────────────────────────────────────
+const TRAIL_VERT = /* glsl */`
+  attribute float ageNorm;
+  attribute vec3  pColor;
+  varying   vec3  vColor;
+  varying   float vAlpha;
+  void main() {
+    vColor = pColor;
+    vAlpha = max(0.0, 1.0 - ageNorm * ageNorm);
+    gl_Position  = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    gl_PointSize = max(1.5, (1.0 - ageNorm) * 22.0);
+  }
+`;
+const TRAIL_FRAG_PT = /* glsl */`
+  varying vec3  vColor;
+  varying float vAlpha;
+  void main() {
+    float d = length(gl_PointCoord - 0.5) * 2.0;
+    if (d > 1.0) discard;
+    float a = (1.0 - d * d) * vAlpha;
+    gl_FragColor = vec4(vColor, a);
+  }
+`;
+const TRAIL_FRAG_LINE = /* glsl */`
+  varying vec3  vColor;
+  varying float vAlpha;
+  void main() {
+    gl_FragColor = vec4(vColor, vAlpha * 0.65);
+  }
+`;
+
+const ptMat = new THREE.ShaderMaterial({
+  vertexShader: TRAIL_VERT, fragmentShader: TRAIL_FRAG_PT,
+  transparent:true, depthWrite:false, blending:THREE.AdditiveBlending,
+});
+const lineMat = new THREE.ShaderMaterial({
+  vertexShader: TRAIL_VERT, fragmentShader: TRAIL_FRAG_LINE,
+  transparent:true, depthWrite:false, blending:THREE.AdditiveBlending,
+});
+
+const ptGeo   = new THREE.BufferGeometry();
+const lineGeo = new THREE.BufferGeometry();
+const ptMesh   = new THREE.Points(ptGeo, ptMat);
+const lineMesh = new THREE.LineSegments(lineGeo, lineMat);
+scene.add(ptMesh, lineMesh);
+
+// Trail data
+const MAX_PTS = 1800;
+const trail = []; // { pos:V3, vel:V3, age:0, maxAge:number, r,g,b, group:int }
+let groupId   = 0;
+let isDrawing = false;
+let colorMode = 'rainbow';
+let hueShift  = 0;
+let drawCount = 0;
+
+function getColor(i) {
+  const h = hueShift + i * 0.8;
+  switch(colorMode) {
+    case 'fire':   return new THREE.Color().setHSL((20 + Math.sin(i*0.12)*18)/360, 1.0, 0.60);
+    case 'sakura': return new THREE.Color().setHSL((320 + Math.sin(i*0.1)*28)/360, 0.85, 0.72);
+    case 'ice':    return new THREE.Color().setHSL((195 + Math.sin(i*0.14)*22)/360, 0.95, 0.70);
+    default:       return new THREE.Color().setHSL((h % 360)/360, 1.0, 0.65);
+  }
+}
+
+function addPoint(wx, wy, isBurst=false) {
+  if (trail.length >= MAX_PTS) trail.shift();
+  const col = getColor(trail.length);
+  trail.push({
+    pos: new THREE.Vector3(wx, wy, 0),
+    vel: new THREE.Vector3(
+      isBurst ? (Math.random()-0.5) * 1.8 : 0,
+      isBurst ? (Math.random() * 2.2 + 0.1) : 0,
+      0
+    ),
+    age: 0,
+    maxAge: isBurst ? (1.2 + Math.random()*0.8) : (2.2 + Math.random()*0.8),
+    r: col.r, g: col.g, b: col.b,
+    group: isBurst ? -1 : groupId,
+  });
+  hueShift += 1.2;
+}
+
+function burst(wx, wy) {
+  for (let i = 0; i < 20; i++) addPoint(wx, wy, true);
+}
+
+function updateTrail(dt) {
+  for (let i = trail.length-1; i >= 0; i--) {
+    const p = trail[i];
+    p.age += dt;
+    if (p.group === -1) {
+      p.pos.addScaledVector(p.vel, dt);
+      p.vel.y -= 0.15 * dt;
+    }
+    if (p.age >= p.maxAge) { trail.splice(i, 1); }
+  }
+}
+
+function crPos(p0, p1, p2, p3, t) {
+  const t2 = t*t, t3 = t2*t;
+  return {
+    x: 0.5*((2*p1.x)+(-p0.x+p2.x)*t+(2*p0.x-5*p1.x+4*p2.x-p3.x)*t2+(-p0.x+3*p1.x-3*p2.x+p3.x)*t3),
+    y: 0.5*((2*p1.y)+(-p0.y+p2.y)*t+(2*p0.y-5*p1.y+4*p2.y-p3.y)*t2+(-p0.y+3*p1.y-3*p2.y+p3.y)*t3)
+  };
+}
+function lerpV(a, b, t) { return a + (b - a) * t; }
+
+function rebuildGeometry() {
+  if (trail.length === 0) {
+    ptGeo.setAttribute('position',   new THREE.BufferAttribute(new Float32Array(0), 3));
+    lineGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(0), 3));
+    return;
+  }
+
+  const pPos=[], pCol=[], pAge=[];
+  for (const p of trail) {
+    pPos.push(p.pos.x, p.pos.y, p.pos.z);
+    pCol.push(p.r, p.g, p.b);
+    pAge.push(p.age / p.maxAge);
+  }
+  ptGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pPos), 3));
+  ptGeo.setAttribute('pColor',   new THREE.BufferAttribute(new Float32Array(pCol), 3));
+  ptGeo.setAttribute('ageNorm',  new THREE.BufferAttribute(new Float32Array(pAge), 1));
+
+  const lPos=[], lCol=[], lAge=[];
+  const SUBS = 8;
+  let i = 0;
+  while (i < trail.length) {
+    if (trail[i].group < 0) { i++; continue; }
+    const g = trail[i].group;
+    const run = [];
+    while (i < trail.length && trail[i].group === g) { run.push(trail[i]); i++; }
+    if (run.length < 2) continue;
+    for (let j = 0; j < run.length - 1; j++) {
+      const p0 = run[Math.max(0, j-1)].pos;
+      const p1 = run[j].pos;
+      const p2 = run[j+1].pos;
+      const p3 = run[Math.min(run.length-1, j+2)].pos;
+      const a0 = run[j], b0 = run[j+1];
+      for (let s = 0; s < SUBS; s++) {
+        const t0 = s/SUBS, t1 = (s+1)/SUBS;
+        const q0 = crPos(p0,p1,p2,p3,t0), q1 = crPos(p0,p1,p2,p3,t1);
+        lPos.push(q0.x,q0.y,0, q1.x,q1.y,0);
+        lCol.push(lerpV(a0.r,b0.r,t0),lerpV(a0.g,b0.g,t0),lerpV(a0.b,b0.b,t0),
+                  lerpV(a0.r,b0.r,t1),lerpV(a0.g,b0.g,t1),lerpV(a0.b,b0.b,t1));
+        lAge.push(lerpV(a0.age/a0.maxAge,b0.age/b0.maxAge,t0),
+                  lerpV(a0.age/a0.maxAge,b0.age/b0.maxAge,t1));
+      }
+    }
+  }
+  lineGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(lPos), 3));
+  lineGeo.setAttribute('pColor',   new THREE.BufferAttribute(new Float32Array(lCol), 3));
+  lineGeo.setAttribute('ageNorm',  new THREE.BufferAttribute(new Float32Array(lAge), 1));
+}
+
+// ─────────────────────────────────────────────
+// CURSOR SPARKLE MESH (at pointer position)
+// ─────────────────────────────────────────────
+const sparkGlow = new THREE.Mesh(
+  new THREE.SphereGeometry(0.14, 10, 8),
+  mkMat(0xffffff, 0.1, 0xffffff, 2.5));
+sparkGlow.visible = false;
+scene.add(sparkGlow);
+
+// ─────────────────────────────────────────────
+// SCREEN → WORLD
+// ─────────────────────────────────────────────
+function screenToWorld(cx, cy) {
+  const nx = (cx / W()) * 2 - 1;
+  const ny = -(cy / H()) * 2 + 1;
+  const v  = new THREE.Vector3(nx, ny, 0.5).unproject(camera);
+  const dir = v.sub(camera.position).normalize();
+  const t   = -camera.position.z / dir.z;
+  return new THREE.Vector3(
+    camera.position.x + dir.x * t,
+    camera.position.y + dir.y * t,
+    0
+  );
+}
+
+// ─────────────────────────────────────────────
+// INPUT
+// ─────────────────────────────────────────────
+let lastWorld = null;
+const bubbleEl = document.getElementById('bubble');
+let bubbleTimer = null;
+
+function showBubble(txt) {
+  const rect = monEl.getBoundingClientRect();
+  const headTopY = rect.top + rect.height * 0.38;
+  bubbleEl.style.top = Math.max(8, headTopY - 42) + 'px';
+  bubbleEl.textContent = txt;
+  bubbleEl.classList.add('show');
+  clearTimeout(bubbleTimer);
+  bubbleTimer = setTimeout(() => bubbleEl.classList.remove('show'), 2400);
+}
+
+const BUBBLES = ['きれい！','すごいね！','もっとかいて！','うわぁ～！','さいこう！'];
+
+function pointerDown(e) {
+  e.preventDefault();
+  isDrawing = true;
+  groupId++;
+  const pts = e.touches ? e.touches : [e];
+  const p = pts[0];
+  const w = screenToWorld(p.clientX, p.clientY);
+  lastWorld = w;
+  addPoint(w.x, w.y);
+  sparkGlow.visible = true;
+}
+
+function pointerMove(e) {
+  e.preventDefault();
+  const pts = e.touches ? e.touches : [e];
+  const p = pts[0];
+  const w = screenToWorld(p.clientX, p.clientY);
+
+  sparkGlow.position.copy(w);
+  cursorLight.position.copy(w);
+  updatePupils(w);
+
+  if (!isDrawing) return;
+
+  if (!lastWorld || w.distanceTo(lastWorld) > 0.02) {
+    addPoint(w.x, w.y);
+    lastWorld = w.clone();
+    drawCount++;
+
+    const col = getColor(trail.length);
+    cursorLight.color.set(col);
+    cursorLight.intensity = 4;
+
+    if (drawCount === 30) showBubble(BUBBLES[Math.floor(Math.random()*BUBBLES.length)]);
+    if (drawCount % 80 === 0) showBubble(BUBBLES[Math.floor(Math.random()*BUBBLES.length)]);
+  }
+}
+
+function pointerUp(e) {
+  e.preventDefault();
+  if (isDrawing) {
+    if (lastWorld) burst(lastWorld.x, lastWorld.y);
+    isDrawing = false;
+    sparkGlow.visible = false;
+    cursorLight.intensity = 0;
+    lastWorld = null;
+  }
+}
+
+canvas.addEventListener('mousedown',  pointerDown,  { passive:false });
+canvas.addEventListener('mousemove',  pointerMove,  { passive:false });
+canvas.addEventListener('mouseup',    pointerUp,    { passive:false });
+canvas.addEventListener('touchstart', pointerDown,  { passive:false });
+canvas.addEventListener('touchmove',  pointerMove,  { passive:false });
+canvas.addEventListener('touchend',   pointerUp,    { passive:false });
+
+// 目追跡は drawMonster2D() 内で処理
+function updatePupils(cursorW) { /* 2D handled */ }
+
+// ─────────────────────────────────────────────
+// PALETTE UI
+// ─────────────────────────────────────────────
+document.querySelectorAll('.pal-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.pal-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    colorMode = btn.dataset.mode;
+    const lightColors = { rainbow:0xffffff, fire:0xff6020, sakura:0xff80c0, ice:0x80d8ff };
+    bloom.strength = colorMode === 'fire' ? 2.2 : 1.6;
+  });
+});
+
+document.getElementById('clear-btn').addEventListener('click', () => {
+  trail.length = 0;
+  drawCount = 0;
+  showBubble('きれいになったよ！');
+});
+
+// ─────────────────────────────────────────────
+// INTRO
+// ─────────────────────────────────────────────
+const introEl = document.getElementById('intro');
+document.getElementById('start-btn').addEventListener('click', () => {
+  introEl.classList.add('hide');
+  setTimeout(() => introEl.style.display='none', 900);
+});
+
+// ─────────────────────────────────────────────
+// RESIZE
+// ─────────────────────────────────────────────
+window.addEventListener('resize', () => {
+  camera.aspect = W()/H();
+  camera.updateProjectionMatrix();
+  renderer.setSize(W(), H());
+  composer.setSize(W(), H());
+});
+
+
+// ─────────────────────────────────────────────
+// RENDER LOOP
+// ─────────────────────────────────────────────
+const clock = new THREE.Clock();
+
+(function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.05);
+  const t  = clock.elapsedTime;
+
+  // Update trail
+  updateTrail(dt);
+  rebuildGeometry();
+
+  // Cursor sparkle pulse
+  if (sparkGlow.visible) {
+    const s = 1 + Math.sin(t * 18) * 0.18;
+    sparkGlow.scale.setScalar(s);
+    const col = getColor(trail.length);
+    sparkGlow.material.emissive.set(col);
+    cursorLight.color.set(col);
+  }
+  cursorLight.intensity *= 0.92;
+
+  // 2D モンスター描画
+  drawMonster2D();
+
+  composer.render();
+})();
+
+// ── BGM ──────────────────────────────────────
+(function(){
+  const bgm = document.getElementById('bgm');
+  const btn = document.getElementById('soundBtn');
+  bgm.volume = 0.5;
+  let started = false, muted = false;
+  function startBgm() {
+    if (started) return; started = true;
+    bgm.play().catch(() => {});
+  }
+  document.addEventListener('pointerdown', startBgm, { once: true });
+  document.addEventListener('touchstart',  startBgm, { once: true, passive: true });
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) bgm.pause();
+    else if (started && !muted) bgm.play().catch(() => {});
+  });
+  btn.addEventListener('click', e => {
+    e.stopPropagation(); startBgm();
+    muted = !muted; bgm.muted = muted;
+    btn.textContent = muted ? '🔇' : '🔊';
+    btn.classList.toggle('muted', muted);
+  });
+})();
+</script>
+</body>
+</html>

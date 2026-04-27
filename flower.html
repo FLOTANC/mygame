@@ -1,0 +1,1045 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>お花をいけよう 🌸</title>
+    <style>
+        *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+
+        body {
+            background: #06000f;
+            overflow: hidden;
+            font-family: 'Hiragino Maru Gothic ProN', 'Rounded Mplus 1c', sans-serif;
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        #c { position:fixed; inset:0; display:block; width:100%; height:100%; }
+
+        /* ── タイトルバー ── */
+        .topbar {
+            position: fixed; top:0; left:0; right:0; z-index:20;
+            padding: 1rem 1.4rem;
+            display: flex; align-items:center; justify-content:space-between;
+            background: linear-gradient(to bottom, rgba(6,0,15,0.85) 0%, transparent 100%);
+        }
+        .top-title {
+            font-size: clamp(1rem,3vw,1.2rem);
+            font-weight: 700; color:#fff;
+            text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+        }
+        .back-btn {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.18);
+            border-radius: 100px;
+            padding: 0.35rem 1rem;
+            font-size: 0.75rem; color:rgba(255,255,255,0.8);
+            text-decoration: none; cursor:pointer;
+            transition: background 0.2s;
+        }
+        .back-btn:hover { background: rgba(255,255,255,0.18); }
+
+        /* ── sound button ── */
+        .sound-btn {
+            position: fixed; top: 1.1rem; right: 1.4rem; z-index: 100;
+            width: 42px; height: 42px; border-radius: 50%;
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(255,255,255,0.15);
+            color: #fff; font-size: 1.15rem; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            transition: background 0.2s, transform 0.15s;
+        }
+        .sound-btn:hover { background: rgba(255,255,255,0.16); transform: scale(1.08); }
+        .sound-btn.muted { opacity: 0.4; }
+
+        /* ── 花カウントドット ── */
+        .flower-dots {
+            position: fixed; top:4rem; left:50%; transform:translateX(-50%);
+            display:flex; gap:0.45rem; z-index:20;
+        }
+        .fd {
+            width:11px; height:11px; border-radius:50%;
+            background:rgba(255,255,255,0.15);
+            border: 1.5px solid rgba(255,255,255,0.25);
+            transition: all 0.4s cubic-bezier(0.34,1.56,0.64,1);
+        }
+        .fd.on {
+            background:#f9a8d4;
+            border-color:#ec4899;
+            box-shadow: 0 0 10px #ec4899, 0 0 20px rgba(236,72,153,0.4);
+            transform: scale(1.25);
+        }
+
+        /* ── ヒント ── */
+        .hint {
+            position: fixed; top:5rem; left:50%; transform:translateX(-50%);
+            color:rgba(255,255,255,0.45); font-size:0.78rem;
+            text-align:center; z-index:20; pointer-events:none;
+            transition: opacity 1s;
+            white-space: nowrap;
+        }
+
+        /* ── パレット（下部UI） ── */
+        .palette {
+            position: fixed; bottom:0; left:0; right:0; z-index:20;
+            padding: 0.9rem 1.2rem 1.4rem;
+            background: linear-gradient(to top,
+                rgba(6,0,15,0.97) 0%,
+                rgba(6,0,15,0.88) 60%,
+                transparent 100%);
+            display:flex; flex-direction:column; gap:0.75rem; align-items:center;
+        }
+
+        /* 花タイプ */
+        .type-row { display:flex; gap:0.55rem; }
+        .type-btn {
+            display:flex; flex-direction:column; align-items:center; gap:0.18rem;
+            background:rgba(255,255,255,0.06);
+            border: 2px solid rgba(255,255,255,0.1);
+            border-radius:14px; padding:0.55rem 1.1rem;
+            cursor:pointer; transition:all 0.22s;
+            min-width: 80px;
+        }
+        .type-btn.on {
+            background:rgba(249,168,212,0.14);
+            border-color:#ec4899;
+            box-shadow: 0 0 18px rgba(236,72,153,0.3);
+        }
+        .type-ico  { font-size:1.6rem; line-height:1; }
+        .type-lbl  { font-size:0.6rem; color:rgba(255,255,255,0.5); }
+        .type-btn.on .type-lbl { color:#f9a8d4; }
+
+        /* カラー */
+        .color-row { display:flex; align-items:center; gap:0.5rem; }
+        .clr-label { font-size:0.65rem; color:rgba(255,255,255,0.35); margin-right:0.2rem; }
+        .cdot {
+            width:27px; height:27px; border-radius:50%;
+            cursor:pointer;
+            border: 2.5px solid transparent;
+            transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+        }
+        .cdot.on {
+            border-color:#fff;
+            transform: scale(1.28);
+            box-shadow: 0 0 10px rgba(255,255,255,0.5);
+        }
+
+        /* 高さコントロール */
+        .height-row {
+            display: flex; align-items: center; gap: 0.6rem;
+        }
+        .h-label { font-size: 0.65rem; color: rgba(255,255,255,0.35); }
+        .h-btn {
+            width: 34px; height: 34px; border-radius: 50%;
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(255,255,255,0.18);
+            color: #fff; font-size: 1rem; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            transition: background 0.2s, transform 0.15s;
+            line-height: 1;
+        }
+        .h-btn:hover { background: rgba(255,255,255,0.18); transform: scale(1.08); }
+        .h-bars {
+            display: flex; gap: 3px; align-items: flex-end; height: 28px;
+        }
+        .h-bar {
+            width: 9px; border-radius: 3px 3px 0 0;
+            background: rgba(255,255,255,0.15);
+            transition: background 0.2s, box-shadow 0.2s;
+        }
+        .h-bar.on {
+            background: #f9a8d4;
+            box-shadow: 0 0 8px rgba(236,72,153,0.6);
+        }
+
+        /* 完成ボタン */
+        .done-btn {
+            background: linear-gradient(135deg, #ec4899, #a855f7);
+            border:none; border-radius:100px;
+            padding: 0.6rem 2.2rem;
+            font-size:0.9rem; font-weight:700; color:#fff;
+            cursor:pointer; display:none;
+            box-shadow: 0 4px 20px rgba(168,85,247,0.4);
+            transition: all 0.25s; font-family: inherit;
+        }
+        .done-btn.show { display:block; }
+        .done-btn:hover { transform:scale(1.06); filter:brightness(1.12); }
+
+        /* ── 完成オーバーレイ ── */
+        .overlay {
+            position:fixed; inset:0; z-index:50;
+            display:flex; flex-direction:column; align-items:center; justify-content:center;
+            background:rgba(6,0,15,0.72); backdrop-filter:blur(12px);
+            opacity:0; pointer-events:none; transition:opacity 0.5s;
+        }
+        .overlay.show { opacity:1; pointer-events:auto; }
+        .ov-title {
+            font-size: clamp(2rem,7vw,3.5rem);
+            font-weight:700; color:#fff; text-align:center;
+            margin-bottom:0.8rem;
+            animation: pop 0.5s cubic-bezier(0.34,1.56,0.64,1);
+        }
+        .ov-sub { color:rgba(255,255,255,0.55); font-size:1rem; margin-bottom:2rem; }
+        .restart-btn {
+            background:rgba(255,255,255,0.1);
+            border:1px solid rgba(255,255,255,0.22);
+            border-radius:100px; padding:0.7rem 2rem;
+            font-size:0.9rem; color:#fff; cursor:pointer; font-family:inherit;
+            transition:background 0.2s;
+        }
+        .restart-btn:hover { background:rgba(255,255,255,0.18); }
+        @keyframes pop {
+            from { transform:scale(0.4) rotate(-8deg); opacity:0; }
+            to   { transform:scale(1) rotate(0deg); opacity:1; }
+        }
+
+        /* ── ローディング ── */
+        .loading {
+            position:fixed; inset:0; z-index:100;
+            display:flex; align-items:center; justify-content:center;
+            background:#06000f; flex-direction:column; gap:1rem;
+            transition: opacity 0.6s;
+        }
+        .loading-txt { color:rgba(255,255,255,0.5); font-size:0.85rem; }
+        .loading-bar {
+            width:160px; height:3px;
+            background:rgba(255,255,255,0.1); border-radius:2px; overflow:hidden;
+        }
+        .loading-fill {
+            height:100%;
+            background:linear-gradient(90deg,#ec4899,#a855f7);
+            width:0%; transition:width 0.3s;
+        }
+    </style>
+</head>
+<body>
+
+<audio id="bgm" src="ikebana-bgm.mp3" loop preload="auto"></audio>
+<button class="sound-btn" id="soundBtn">🔊</button>
+<canvas id="c"></canvas>
+
+<!-- ローディング -->
+<div class="loading" id="loading">
+    <div style="font-size:2.5rem">🌸</div>
+    <div class="loading-txt">お花のじゅんびをしています…</div>
+    <div class="loading-bar"><div class="loading-fill" id="lf"></div></div>
+</div>
+
+<!-- タイトル -->
+<div class="topbar">
+    <div class="top-title">🌸 お花をいけよう</div>
+    <a href="index.html" class="back-btn">← もどる</a>
+</div>
+
+<!-- カウントドット -->
+<div class="flower-dots" id="dots"></div>
+
+<!-- ヒント -->
+<div class="hint" id="hint">画面をタップしてお花を生けよう！ドラッグで視点が回ります</div>
+
+<!-- パレット -->
+<div class="palette">
+    <div class="type-row" id="typeRow">
+        <button class="type-btn on" data-type="tulip">
+            <span class="type-ico">🌷</span><span class="type-lbl">チューリップ</span>
+        </button>
+        <button class="type-btn" data-type="daisy">
+            <span class="type-ico">🌼</span><span class="type-lbl">マーガレット</span>
+        </button>
+        <button class="type-btn" data-type="rose">
+            <span class="type-ico">🌹</span><span class="type-lbl">バラ</span>
+        </button>
+    </div>
+    <div class="color-row" id="colorRow">
+        <span class="clr-label">いろ：</span>
+    </div>
+    <div class="height-row">
+        <span class="h-label">たかさ：</span>
+        <button class="h-btn" id="hDown">↓</button>
+        <div class="h-bars" id="hBars"></div>
+        <button class="h-btn" id="hUp">↑</button>
+    </div>
+    <button class="done-btn" id="doneBtn">🌸 できあがり！</button>
+</div>
+
+<!-- 完成オーバーレイ -->
+<div class="overlay" id="overlay">
+    <div class="ov-title" id="ovTitle">🌸 すてき！</div>
+    <div class="ov-sub"  id="ovSub">ぜんぶで 9本 いけました</div>
+    <button class="restart-btn" id="restartBtn">もういちど</button>
+</div>
+
+<!-- Three.js importmap -->
+<script type="importmap">
+{
+    "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.161.0/examples/jsm/"
+    }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// ══════════════════════════════════════════════════════════════
+//  データ
+// ══════════════════════════════════════════════════════════════
+const MAX = 9;
+
+// 花瓶の上の配置スロット（xz位置、傾き）
+const SLOTS = [
+    { x: 0.00, z: 0.00, lean:0.04, ry:0 },
+    { x: 0.44, z: 0.00, lean:0.22, ry:0 },
+    { x:-0.44, z: 0.00, lean:0.22, ry: Math.PI },
+    { x: 0.00, z: 0.44, lean:0.22, ry: Math.PI*0.5 },
+    { x: 0.00, z:-0.44, lean:0.22, ry:-Math.PI*0.5 },
+    { x: 0.32, z: 0.32, lean:0.28, ry: Math.PI*0.25 },
+    { x:-0.32, z: 0.32, lean:0.28, ry: Math.PI*0.75 },
+    { x: 0.32, z:-0.32, lean:0.28, ry:-Math.PI*0.25 },
+    { x:-0.32, z:-0.32, lean:0.28, ry:-Math.PI*0.75 },
+];
+
+const COLORS = {
+    tulip: [0xff6699,0xff2255,0xffcc00,0xff7722,0xbb44ff,0xff99cc,0x44ccff],
+    daisy: [0xffffff,0xfffaaa,0xffd6f0,0xccffee,0xaaddff,0xffddcc,0xeeddff],
+    rose:  [0xcc2244,0xff4488,0xff2200,0xdd44aa,0xaa1166,0xff8844,0xcc3377],
+};
+
+const PRAISE = [
+    'きれい！すてきないけばな！',
+    'かわいい！じょうずだね！',
+    'すごい！センスあるね！',
+    'さいこう！ほんものみたい！',
+];
+
+// ══════════════════════════════════════════════════════════════
+//  ゲーム状態
+// ══════════════════════════════════════════════════════════════
+let currentType  = 'tulip';
+let currentColor = COLORS.tulip[0];
+let placedCount  = 0;
+let growing      = []; // { mesh, t }
+
+// ══════════════════════════════════════════════════════════════
+//  Three.js 初期化
+// ══════════════════════════════════════════════════════════════
+const canvas   = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias:true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type    = THREE.PCFSoftShadowMap;
+renderer.toneMapping       = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.35;
+renderer.outputColorSpace  = THREE.SRGBColorSpace;
+
+const scene  = new THREE.Scene();
+scene.background = new THREE.Color(0x08000f);
+scene.fog    = new THREE.FogExp2(0x08000f, 0.048);
+
+const W = innerWidth, H = innerHeight;
+const camera = new THREE.PerspectiveCamera(42, W/H, 0.1, 100);
+camera.position.set(0, 6, 12);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 2.8, 0);
+controls.enableDamping  = true;
+controls.dampingFactor  = 0.09;
+controls.minPolarAngle  = 0.1;
+controls.maxPolarAngle  = Math.PI/2.0;
+controls.minDistance    = 5;
+controls.maxDistance    = 20;
+controls.autoRotate     = true;
+controls.autoRotateSpeed = 0.45;
+
+function resize(){
+    renderer.setSize(innerWidth, innerHeight);
+    camera.aspect = innerWidth/innerHeight;
+    camera.updateProjectionMatrix();
+}
+resize(); addEventListener('resize', resize);
+
+// ══════════════════════════════════════════════════════════════
+//  ライティング
+// ══════════════════════════════════════════════════════════════
+scene.add(new THREE.AmbientLight(0xfff0ff, 0.75));
+
+const sun = new THREE.DirectionalLight(0xfff8f0, 2.2);
+sun.position.set(6, 14, 8);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048,2048);
+sun.shadow.camera.left = sun.shadow.camera.bottom = -8;
+sun.shadow.camera.right = sun.shadow.camera.top   =  8;
+sun.shadow.bias = -0.001;
+scene.add(sun);
+
+// カラーポイントライト（ドラマチックに）
+const pl1 = new THREE.PointLight(0xff69b4, 3.0, 18);
+pl1.position.set(-5, 6, 2); scene.add(pl1);
+const pl2 = new THREE.PointLight(0x9b59b6, 2.5, 16);
+pl2.position.set( 5, 5,-3); scene.add(pl2);
+const pl3 = new THREE.PointLight(0x4fc3f7, 1.8, 14);
+pl3.position.set( 0, 9,-5); scene.add(pl3);
+
+// ══════════════════════════════════════════════════════════════
+//  環境（床・台・花瓶）
+// ══════════════════════════════════════════════════════════════
+// 床
+const floor = new THREE.Mesh(
+    new THREE.CircleGeometry(14, 72),
+    new THREE.MeshStandardMaterial({ color:0x150025, roughness:0.9, metalness:0.08 })
+);
+floor.rotation.x = -Math.PI/2;
+floor.receiveShadow = true;
+scene.add(floor);
+
+// テーブル（台）
+const table = new THREE.Mesh(
+    new THREE.CylinderGeometry(2.2, 2.0, 0.28, 48),
+    new THREE.MeshStandardMaterial({ color:0x2a0a50, roughness:0.45, metalness:0.25 })
+);
+table.position.y = 0.14;
+table.castShadow = table.receiveShadow = true;
+scene.add(table);
+
+// テーブル上面光沢
+const tableTop = new THREE.Mesh(
+    new THREE.CircleGeometry(2.2, 48),
+    new THREE.MeshStandardMaterial({ color:0x3d1070, roughness:0.3, metalness:0.35 })
+);
+tableTop.rotation.x = -Math.PI/2;
+tableTop.position.y  =  0.281;
+tableTop.receiveShadow = true;
+scene.add(tableTop);
+
+// 花瓶（LatheGeometry でエレガントな形）
+const vp = [
+    new THREE.Vector2(0.00, 0.00),
+    new THREE.Vector2(0.78, 0.06),
+    new THREE.Vector2(1.00, 0.55),
+    new THREE.Vector2(0.88, 1.10),
+    new THREE.Vector2(0.62, 1.70),
+    new THREE.Vector2(0.52, 2.20),
+    new THREE.Vector2(0.58, 2.70),
+    new THREE.Vector2(0.78, 3.00),
+    new THREE.Vector2(0.84, 3.20),
+    new THREE.Vector2(0.80, 3.30),
+];
+const vase = new THREE.Mesh(
+    new THREE.LatheGeometry(vp, 72),
+    new THREE.MeshStandardMaterial({
+        color:0xe8d5c8, roughness:0.22, metalness:0.18,
+    })
+);
+vase.position.y = 0.28;
+vase.castShadow = vase.receiveShadow = true;
+scene.add(vase);
+
+// 花瓶内側（暗く）
+const vaseInner = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.70,0.01,3.3,32,1,true),
+    new THREE.MeshStandardMaterial({ color:0x08000f, roughness:1, side:THREE.BackSide })
+);
+vaseInner.position.y = 2.0;
+scene.add(vaseInner);
+
+// ══════════════════════════════════════════════════════════════
+//  浮遊する花びら（Pointsシステム）
+// ══════════════════════════════════════════════════════════════
+const PCOUNT = 280;
+const pPos  = new Float32Array(PCOUNT * 3);
+const pCol  = new Float32Array(PCOUNT * 3);
+const pData = []; // { speed, wobble, wobbleSpeed, driftX }
+
+const PETAL_COLS = [
+    [1.0,0.7,0.85], [1.0,0.85,0.92],
+    [0.9,0.7,1.0],  [0.7,0.9,1.0],
+    [1.0,0.95,0.7],
+];
+
+for(let i=0; i<PCOUNT; i++){
+    const r = 4 + Math.random()*8;
+    const a = Math.random()*Math.PI*2;
+    pPos[i*3  ] = Math.cos(a)*r;
+    pPos[i*3+1] = Math.random()*13;
+    pPos[i*3+2] = Math.sin(a)*r;
+    const c = PETAL_COLS[i % PETAL_COLS.length];
+    pCol[i*3]   = c[0]; pCol[i*3+1]=c[1]; pCol[i*3+2]=c[2];
+    pData.push({
+        speed:      0.012 + Math.random()*0.018,
+        wobble:     Math.random()*Math.PI*2,
+        wobbleSpd:  0.008 + Math.random()*0.016,
+        driftX:     (Math.random()-0.5)*0.008,
+    });
+}
+
+const petalGeo = new THREE.BufferGeometry();
+petalGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
+petalGeo.setAttribute('color',    new THREE.BufferAttribute(pCol, 3));
+
+// 丸い点のテクスチャ
+const petalCanvas = document.createElement('canvas');
+petalCanvas.width = petalCanvas.height = 64;
+const ptx = petalCanvas.getContext('2d');
+const pg = ptx.createRadialGradient(32,32,2,32,32,30);
+pg.addColorStop(0,'rgba(255,255,255,1)');
+pg.addColorStop(0.4,'rgba(255,200,220,0.7)');
+pg.addColorStop(1,'rgba(255,180,200,0)');
+ptx.fillStyle = pg;
+ptx.fillRect(0,0,64,64);
+const petalTex = new THREE.CanvasTexture(petalCanvas);
+
+const petals = new THREE.Points(petalGeo, new THREE.PointsMaterial({
+    size: 0.22, map: petalTex,
+    vertexColors: true, transparent:true, opacity:0.7,
+    sizeAttenuation:true, depthWrite:false, blending:THREE.AdditiveBlending,
+}));
+scene.add(petals);
+
+// ══════════════════════════════════════════════════════════════
+//  花の作成ヘルパー
+// ══════════════════════════════════════════════════════════════
+const STEM_MAT = new THREE.MeshStandardMaterial({ color:0x2d7a2d, roughness:0.82 });
+const LEAF_MAT = new THREE.MeshStandardMaterial({ color:0x3a9040, side:THREE.DoubleSide, roughness:0.78 });
+
+function makeStem(h=3.0){
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(0.032,0.052,h,8), STEM_MAT);
+    m.position.y = -h/2; m.castShadow = true;
+    return m;
+}
+
+function makeLeaf(scl=1){
+    const s = new THREE.Shape();
+    s.moveTo(0,0);
+    s.bezierCurveTo(0.26,0.08,0.22,0.65,0.04,0.88);
+    s.bezierCurveTo(-0.04,0.88,-0.22,0.65,0,0);
+    const m = new THREE.Mesh(new THREE.ShapeGeometry(s,10), LEAF_MAT);
+    m.scale.setScalar(scl); m.castShadow = true;
+    return m;
+}
+
+function petalShape2D(w=0.28, h=1.0){
+    const s = new THREE.Shape();
+    s.moveTo(0,0);
+    s.bezierCurveTo( w,   h*0.15, w*0.88, h*0.75, w*0.4, h);
+    s.bezierCurveTo( 0,   h*1.08,-w*0.4,  h*1.08,-w*0.4, h);
+    s.bezierCurveTo(-w*0.88,h*0.75,-w,h*0.15,0,0);
+    return s;
+}
+
+function shadeColor(hex, amt){
+    const c = new THREE.Color(hex);
+    return c.offsetHSL(0, amt > 0 ? 0.05 : -0.05, amt).getHex();
+}
+
+// ── チューリップ ──────────────────────────────────
+function createTulip(color){
+    const g = new THREE.Group();
+    const pg = new THREE.ShapeGeometry(petalShape2D(0.26, 1.1), 16);
+
+    // 外側6枚
+    const outerM = new THREE.MeshStandardMaterial({ color, side:THREE.DoubleSide, roughness:0.62 });
+    for(let i=0; i<6; i++){
+        const p = new THREE.Mesh(pg, outerM);
+        const a = (i/6)*Math.PI*2;
+        p.position.set(Math.cos(a)*0.16, 0, Math.sin(a)*0.16);
+        p.rotation.y = a;
+        p.rotation.x = -0.42;
+        p.castShadow = true;
+        g.add(p);
+    }
+    // 内側3枚（明るく）
+    const innerM = new THREE.MeshStandardMaterial({ color:shadeColor(color,0.15), side:THREE.DoubleSide, roughness:0.5 });
+    const isg = new THREE.ShapeGeometry(petalShape2D(0.18, 0.9), 12);
+    for(let i=0; i<3; i++){
+        const p = new THREE.Mesh(isg, innerM);
+        const a = (i/3)*Math.PI*2 + 0.5;
+        p.position.set(Math.cos(a)*0.07, 0.1, Math.sin(a)*0.07);
+        p.rotation.y = a; p.rotation.x = -0.72;
+        g.add(p);
+    }
+    g.add(makeStem(3.0));
+    const l1 = makeLeaf(1.15); l1.position.set(0.14,-1.2,0); l1.rotation.z=-0.38; g.add(l1);
+    const l2 = makeLeaf(0.9);  l2.position.set(-0.12,-1.9,0.08); l2.rotation.z=0.42; g.add(l2);
+    return g;
+}
+
+// ── マーガレット ─────────────────────────────────
+function createDaisy(color){
+    const g = new THREE.Group();
+
+    // 中央の黄色い盛り上がり
+    const cm = new THREE.Mesh(
+        new THREE.SphereGeometry(0.26,20,14),
+        new THREE.MeshStandardMaterial({ color:0xffc400, roughness:0.78 })
+    );
+    cm.scale.y = 0.62; cm.castShadow = true; g.add(cm);
+
+    // 外側の細い花びら 18枚
+    const ps = new THREE.Shape();
+    ps.moveTo(0,0);
+    ps.bezierCurveTo(0.1,0.05,0.08,0.48,0,0.68);
+    ps.bezierCurveTo(-0.08,0.48,-0.1,0.05,0,0);
+    const psg = new THREE.ShapeGeometry(ps,10);
+    const pm  = new THREE.MeshStandardMaterial({ color, side:THREE.DoubleSide, roughness:0.72 });
+    for(let i=0; i<18; i++){
+        const p = new THREE.Mesh(psg, pm);
+        const a = (i/18)*Math.PI*2;
+        p.position.set(Math.cos(a)*0.30, 0, Math.sin(a)*0.30);
+        p.rotation.y = a; p.rotation.x = 0.16;
+        p.castShadow = true; g.add(p);
+    }
+    g.add(makeStem(2.9));
+    const l = makeLeaf(0.95); l.position.set(0.16,-1.1,0); l.rotation.z=-0.42; g.add(l);
+    return g;
+}
+
+// ── バラ ─────────────────────────────────────────
+function createRose(color){
+    const g = new THREE.Group();
+    const ps = petalShape2D(0.24,0.92);
+    const psg = new THREE.ShapeGeometry(ps,16);
+
+    const LAYERS = [
+        { n:5,  r:0.07, tx:0.9,  y:0.00, s:0.42 },
+        { n:7,  r:0.20, tx:0.58, y:-0.04,s:0.62 },
+        { n:9,  r:0.36, tx:0.34, y:-0.10,s:0.82 },
+        { n:11, r:0.54, tx:0.17, y:-0.20,s:1.00 },
+    ];
+
+    LAYERS.forEach((l,li)=>{
+        const col = shadeColor(color, (li-1)*0.06);
+        const m = new THREE.MeshStandardMaterial({ color:col, side:THREE.DoubleSide, roughness:0.58 });
+        for(let i=0; i<l.n; i++){
+            const a = (i/l.n)*Math.PI*2 + li*0.45;
+            const p = new THREE.Mesh(psg, m);
+            p.position.set(Math.cos(a)*l.r, l.y, Math.sin(a)*l.r);
+            p.rotation.y = a + Math.PI/2;
+            p.rotation.x = l.tx;
+            p.scale.setScalar(l.s);
+            p.castShadow = true;
+            g.add(p);
+        }
+    });
+    g.add(makeStem(3.1));
+    const l1 = makeLeaf(1.05); l1.position.set(0.16,-1.3,0); l1.rotation.z=-0.4; g.add(l1);
+    const l2 = makeLeaf(0.82); l2.position.set(-0.14,-2.0,0.06); l2.rotation.z=0.44; g.add(l2);
+    return g;
+}
+
+const CREATORS = { tulip:createTulip, daisy:createDaisy, rose:createRose };
+
+// ══════════════════════════════════════════════════════════════
+//  UIセットアップ
+// ══════════════════════════════════════════════════════════════
+// カウントドット
+const dotsEl = document.getElementById('dots');
+const dotEls = [];
+for(let i=0; i<MAX; i++){
+    const d = document.createElement('div');
+    d.className = 'fd'; dotsEl.appendChild(d); dotEls.push(d);
+}
+
+// 花タイプ
+document.querySelectorAll('.type-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+        document.querySelectorAll('.type-btn').forEach(b=>b.classList.remove('on'));
+        btn.classList.add('on');
+        currentType  = btn.dataset.type;
+        currentColor = COLORS[currentType][0];
+        buildColors();
+    });
+});
+
+// カラーパレット
+const colorRow = document.getElementById('colorRow');
+let cDots = [];
+function buildColors(){
+    cDots.forEach(d=>d.remove()); cDots=[];
+    COLORS[currentType].forEach((c,i)=>{
+        const d = document.createElement('div');
+        d.className = 'cdot'+(i===0?' on':'');
+        d.style.background = '#'+c.toString(16).padStart(6,'0');
+        d.addEventListener('click',()=>{
+            cDots.forEach(x=>x.classList.remove('on'));
+            d.classList.add('on');
+            currentColor = c;
+        });
+        colorRow.appendChild(d); cDots.push(d);
+    });
+    currentColor = COLORS[currentType][0];
+}
+buildColors();
+
+document.getElementById('doneBtn').addEventListener('click', showComplete);
+document.getElementById('restartBtn').addEventListener('click', restart);
+
+// ══════════════════════════════════════════════════════════════
+//  花を生ける
+// ══════════════════════════════════════════════════════════════
+const VASE_TOP_Y = 3.58; // 花瓶の口のY座標
+
+// ── 高さコントロール ─────────────────────────────────
+const H_LEVELS = [-0.6, -0.3, 0.0, 0.4, 0.8, 1.2, 1.7]; // Y オフセット
+const H_BAR_HEIGHTS = [8, 11, 15, 19, 23, 26, 28];       // px
+let hIdx = 2; // デフォルト：真ん中（オフセット 0）
+
+const hBarsEl = document.getElementById('hBars');
+H_LEVELS.forEach((_, i) => {
+    const b = document.createElement('div');
+    b.className = 'h-bar' + (i === hIdx ? ' on' : '');
+    b.style.height = H_BAR_HEIGHTS[i] + 'px';
+    hBarsEl.appendChild(b);
+});
+
+function updateHBars(){
+    hBarsEl.querySelectorAll('.h-bar').forEach((b, i) => {
+        b.classList.toggle('on', i === hIdx);
+    });
+}
+
+document.getElementById('hUp').addEventListener('click', () => {
+    if(selectedFlower){
+        // 選択中の花の高さを上げる
+        const maxY = VASE_TOP_Y + H_LEVELS[H_LEVELS.length-1];
+        selectedFlower.position.y = Math.min(selectedFlower.position.y + 0.3, maxY);
+    } else {
+        if(hIdx < H_LEVELS.length - 1){ hIdx++; updateHBars(); }
+    }
+});
+document.getElementById('hDown').addEventListener('click', () => {
+    if(selectedFlower){
+        // 選択中の花の高さを下げる
+        const minY = VASE_TOP_Y + H_LEVELS[0];
+        selectedFlower.position.y = Math.max(selectedFlower.position.y - 0.3, minY);
+    } else {
+        if(hIdx > 0){ hIdx--; updateHBars(); }
+    }
+});
+
+function placeFlower(){
+    if(placedCount >= MAX) return;
+    const slot = SLOTS[placedCount];
+
+    const flower = CREATORS[currentType](currentColor);
+    const placeY = VASE_TOP_Y + H_LEVELS[hIdx];
+    flower.position.set(slot.x, placeY, slot.z);
+    flower.rotation.y = slot.ry + (Math.random()-0.5)*0.35;
+
+    // 外向きに傾ける
+    const lean = slot.lean;
+    const lx = slot.x, lz = slot.z;
+    const len = Math.sqrt(lx*lx+lz*lz) || 1;
+    flower.rotation.x =  lean * (lz/len);
+    flower.rotation.z = -lean * (lx/len);
+
+    flower.scale.setScalar(0.001);
+    flower.userData.isFlower = true;
+    scene.add(flower);
+    growing.push({ mesh:flower, t:0 });
+
+    dotEls[placedCount].classList.add('on');
+    placedCount++;
+
+    playChime(placedCount);
+    if(placedCount===1) document.getElementById('hint').style.opacity='0';
+    if(placedCount>=3)  document.getElementById('doneBtn').classList.add('show');
+    if(placedCount>=MAX) setTimeout(showComplete, 900);
+}
+
+// ══════════════════════════════════════════════════════════════
+//  完成 & リスタート
+// ══════════════════════════════════════════════════════════════
+function showComplete(){
+    document.getElementById('ovTitle').innerHTML =
+        '🌸 '+PRAISE[Math.floor(Math.random()*PRAISE.length)];
+    document.getElementById('ovSub').textContent =
+        `ぜんぶで ${placedCount}本 いけました`;
+    document.getElementById('overlay').classList.add('show');
+    spawnConfetti();
+    controls.autoRotateSpeed = 1.4;
+}
+
+function restart(){
+    growing.forEach(f=>scene.remove(f.mesh));
+    growing = [];
+    scene.children.filter(c=>c.userData?.isFlower).forEach(c=>scene.remove(c));
+    placedCount = 0;
+    dotEls.forEach(d=>d.classList.remove('on'));
+    document.getElementById('doneBtn').classList.remove('show');
+    document.getElementById('overlay').classList.remove('show');
+    document.getElementById('hint').style.opacity='1';
+    controls.autoRotateSpeed = 0.45;
+}
+
+// ══════════════════════════════════════════════════════════════
+//  お祝い紙吹雪
+// ══════════════════════════════════════════════════════════════
+function spawnConfetti(){
+    const cols=[0xf472b6,0xa855f7,0x06b6d4,0xfbbf24,0x22c55e,0xff6699];
+    const geo = new THREE.SphereGeometry(0.07,6,6);
+    for(let i=0;i<80;i++){
+        const m = new THREE.Mesh(geo,
+            new THREE.MeshBasicMaterial({color:cols[i%cols.length]}));
+        const a=Math.random()*Math.PI*2, r=0.5+Math.random()*2.5;
+        m.position.set(Math.cos(a)*r, 3.5+Math.random()*3, Math.sin(a)*r);
+        m.userData.vel = new THREE.Vector3(
+            (Math.random()-0.5)*0.14,
+            0.06+Math.random()*0.14,
+            (Math.random()-0.5)*0.14);
+        m.userData.isConf = true;
+        scene.add(m);
+        setTimeout(()=>scene.remove(m), 3500);
+    }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  音 (Web Audio)
+// ══════════════════════════════════════════════════════════════
+let ac;
+const NOTES = [523,659,784,880,988,1047,1175,1319,1568];
+function playChime(n){
+    try{
+        ac = ac || new(window.AudioContext||window.webkitAudioContext)();
+        const freq = NOTES[(n-1)%NOTES.length];
+        [[freq,0.28,1.4],[freq*2,0.10,0.8],[freq*1.5,0.08,1.0]].forEach(([f,v,dur])=>{
+            const o=ac.createOscillator(), g=ac.createGain();
+            o.connect(g); g.connect(ac.destination);
+            o.type='sine'; o.frequency.value=f;
+            g.gain.setValueAtTime(v,ac.currentTime);
+            g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+dur);
+            o.start(); o.stop(ac.currentTime+dur);
+        });
+    }catch(e){}
+}
+
+// ══════════════════════════════════════════════════════════════
+//  花の選択 & ドラッグ移動
+// ══════════════════════════════════════════════════════════════
+const raycaster  = new THREE.Raycaster();
+const _mouse     = new THREE.Vector2();
+const _dragPlane = new THREE.Plane(new THREE.Vector3(0,1,0), 0);
+const _dragPt    = new THREE.Vector3();
+
+// 選択リング
+const selRing = new THREE.Mesh(
+    new THREE.RingGeometry(0.5, 0.7, 48),
+    new THREE.MeshBasicMaterial({
+        color:0xf9a8d4, transparent:true, opacity:0.8,
+        side:THREE.DoubleSide, depthWrite:false
+    })
+);
+selRing.rotation.x = -Math.PI/2;
+selRing.visible = false;
+scene.add(selRing);
+
+let selectedFlower   = null;
+let isDraggingFlower = false;
+
+function hitFlower(e){
+    _mouse.set(
+        (e.clientX / innerWidth)  * 2 - 1,
+       -(e.clientY / innerHeight) * 2 + 1
+    );
+    raycaster.setFromCamera(_mouse, camera);
+    const flowers = scene.children.filter(c => c.userData?.isFlower);
+    const hits = raycaster.intersectObjects(flowers, true);
+    if(!hits.length) return null;
+    let o = hits[0].object;
+    while(o && !o.userData?.isFlower) o = o.parent;
+    return o || null;
+}
+
+function refreshLean(f){
+    const lx=f.position.x, lz=f.position.z;
+    const r=Math.sqrt(lx*lx+lz*lz)||0.001;
+    const lean=Math.min(r*0.55, 0.42);
+    f.rotation.x =  lean*(lz/r);
+    f.rotation.z = -lean*(lx/r);
+}
+
+function selectFlower(f){
+    selectedFlower = f;
+    if(f){
+        _dragPlane.setFromNormalAndCoplanarPoint(new THREE.Vector3(0,1,0), f.position);
+        selRing.position.set(f.position.x, 0.30, f.position.z);
+        selRing.visible = true;
+        controls.enabled = false;
+    } else {
+        selRing.visible = false;
+        controls.enabled = true;
+    }
+}
+
+// ── クリック / タップ ──────────────────────────────────────
+let dragging=false, px=0, py=0;
+
+canvas.addEventListener('pointerdown', e=>{
+    if(e.clientY > innerHeight-155) return;
+    px=e.clientX; py=e.clientY;
+    dragging=false; isDraggingFlower=false;
+    selectFlower(hitFlower(e));
+});
+
+canvas.addEventListener('pointermove', e=>{
+    if(Math.hypot(e.clientX-px, e.clientY-py) > 6) dragging=true;
+
+    if(selectedFlower && dragging){
+        isDraggingFlower=true;
+        _mouse.set(
+            (e.clientX/innerWidth)*2-1,
+           -(e.clientY/innerHeight)*2+1
+        );
+        raycaster.setFromCamera(_mouse, camera);
+        if(raycaster.ray.intersectPlane(_dragPlane, _dragPt)){
+            // 花瓶の口の範囲内に制限
+            const maxR=1.0;
+            const dx=_dragPt.x, dz=_dragPt.z;
+            const r=Math.sqrt(dx*dx+dz*dz);
+            if(r>maxR){ _dragPt.x*=maxR/r; _dragPt.z*=maxR/r; }
+            selectedFlower.position.x = _dragPt.x;
+            selectedFlower.position.z = _dragPt.z;
+            selRing.position.x = _dragPt.x;
+            selRing.position.z = _dragPt.z;
+            refreshLean(selectedFlower);
+        }
+    }
+});
+
+canvas.addEventListener('pointerup', e=>{
+    const wasDragging = isDraggingFlower;
+    isDraggingFlower = false;
+
+    if(selectedFlower){
+        if(!wasDragging && !dragging){
+            // タップだけ → 選択解除
+            selectFlower(null);
+        }
+        return;
+    }
+    // 花なし → 新しい花を生ける
+    if(!dragging && e.clientY < innerHeight-155){
+        placeFlower();
+    }
+});
+
+// ══════════════════════════════════════════════════════════════
+//  ローディング疑似進捗
+// ══════════════════════════════════════════════════════════════
+let loadPct = 0;
+const lfEl = document.getElementById('lf');
+const loadTick = setInterval(()=>{
+    loadPct = Math.min(loadPct+8, 98);
+    lfEl.style.width = loadPct+'%';
+},80);
+
+// ══════════════════════════════════════════════════════════════
+//  アニメーションループ
+// ══════════════════════════════════════════════════════════════
+const clock = new THREE.Clock();
+let loaded = false;
+
+function tick(){
+    requestAnimationFrame(tick);
+    const et = clock.getElapsedTime();
+    controls.update();
+
+    // 初回ローディング非表示
+    if(!loaded && et > 1.0){
+        loaded = true;
+        clearInterval(loadTick);
+        lfEl.style.width='100%';
+        setTimeout(()=>{
+            const lo=document.getElementById('loading');
+            lo.style.opacity='0';
+            setTimeout(()=>lo.remove(),600);
+        },300);
+    }
+
+    // 花の成長アニメ
+    growing = growing.filter(f=>{
+        f.t = Math.min(f.t+0.045, 1.5);
+        const s = Math.min(f.t, 1);
+        // バウンシーイーズ
+        const ease = s>=1 ? 1 : 1-Math.pow(2,-7*s)*Math.cos(s*Math.PI*4.5);
+        f.mesh.scale.setScalar(ease);
+        return f.t < 1.5;
+    });
+
+    // 浮遊花びら
+    const pos = petals.geometry.attributes.position.array;
+    for(let i=0; i<PCOUNT; i++){
+        const d = pData[i];
+        d.wobble += d.wobbleSpd;
+        pos[i*3  ] += d.driftX + Math.sin(d.wobble)*0.004;
+        pos[i*3+1] -= d.speed;
+        pos[i*3+2] += Math.cos(d.wobble)*0.003;
+        if(pos[i*3+1] < -1){
+            pos[i*3+1] = 12+Math.random()*3;
+            const r=4+Math.random()*8, a=Math.random()*Math.PI*2;
+            pos[i*3]= Math.cos(a)*r;
+            pos[i*3+2]=Math.sin(a)*r;
+        }
+    }
+    petals.geometry.attributes.position.needsUpdate = true;
+
+    // 紙吹雪
+    scene.traverse(obj=>{
+        if(!obj.userData.isConf) return;
+        obj.userData.vel.y -= 0.003;
+        obj.position.addScaledVector(obj.userData.vel,1);
+    });
+
+    // 選択リングのパルス
+    if(selRing.visible){
+        selRing.material.opacity = 0.5 + Math.sin(et*5)*0.3;
+        selRing.scale.setScalar(1 + Math.sin(et*5)*0.04);
+    }
+
+    // カラーライトゆらぎ
+    pl1.intensity = 2.8+Math.sin(et*1.1)*0.5;
+    pl2.intensity = 2.2+Math.sin(et*1.5+1.2)*0.4;
+
+    // 花瓶のほのかな輝き
+    vase.material.emissive = new THREE.Color(
+        0.04+Math.sin(et*0.7)*0.02,
+        0.01,
+        0.06+Math.sin(et*0.9+1)*0.02
+    );
+
+    renderer.render(scene, camera);
+}
+tick();
+
+// ── BGM ──────────────────────────────────────────────────
+(function(){
+    const bgm = document.getElementById('bgm');
+    const btn = document.getElementById('soundBtn');
+    bgm.volume = 0.5;
+    let started = false, muted = false;
+    function startBgm() {
+        if (started) return;
+        started = true;
+        bgm.play().catch(() => {});
+    }
+    document.addEventListener('pointerdown', startBgm, { once: true });
+    document.addEventListener('touchstart',  startBgm, { once: true, passive: true });
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) bgm.pause();
+        else if (started && !muted) bgm.play().catch(() => {});
+    });
+    btn.addEventListener('click', e => {
+        e.stopPropagation();
+        startBgm();
+        muted = !muted;
+        bgm.muted = muted;
+        btn.textContent = muted ? '🔇' : '🔊';
+        btn.classList.toggle('muted', muted);
+    });
+})();
+</script>
+</body>
+</html>

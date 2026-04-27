@@ -1,0 +1,924 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>おどれ！タンタン</title>
+<style>
+  *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+  body { background:#000; overflow:hidden; touch-action:none; user-select:none;
+         font-family:'Noto Sans JP','Hiragino Sans',sans-serif; }
+
+  #c { position:fixed; inset:0; width:100%; height:100%; display:block; }
+
+  #back-btn {
+    position:fixed; top:14px; left:14px; z-index:100;
+    background:rgba(255,255,255,.12); border:none; border-radius:50%;
+    width:42px; height:42px; color:#fff; font-size:20px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    backdrop-filter:blur(8px);
+  }
+
+  /* ── Beat display ── */
+  #beat-row {
+    position:fixed; top:28px; left:50%; transform:translateX(-50%);
+    display:flex; gap:10px; align-items:center; z-index:90;
+    min-height:40px;
+  }
+  .beat-dot {
+    border-radius:50%; transition:transform .15s;
+    box-shadow: 0 0 10px 3px var(--gc);
+    opacity:.85;
+    animation: dot-pop .25s ease-out;
+  }
+  .beat-dot.big   { width:28px; height:28px; background:var(--gc,#ff6b35); }
+  .beat-dot.small { width:18px; height:18px; background:var(--gc,#4fc3f7); }
+  .beat-dot.active { transform:scale(1.5); opacity:1; }
+  @keyframes dot-pop { from { transform:scale(0); } to { transform:scale(1); } }
+
+  /* ── Speech bubble ── */
+  #speech-bubble {
+    position:fixed; top:80px; left:50%; transform:translateX(-50%);
+    background:rgba(255,255,255,.15); backdrop-filter:blur(12px);
+    border:1px solid rgba(255,255,255,.25); border-radius:20px;
+    padding:10px 22px; font-size:18px; color:#fff; white-space:nowrap;
+    z-index:90; opacity:0; transition:opacity .3s;
+    max-width:80vw; text-align:center; overflow:hidden; text-overflow:ellipsis;
+  }
+  #speech-bubble.show { opacity:1; }
+
+  /* ── Bottom UI ── */
+  #bottom-ui {
+    position:fixed; bottom:0; left:0; right:0;
+    display:flex; flex-direction:column; align-items:center;
+    padding:0 20px 44px; z-index:80;
+  }
+
+  #hint {
+    font-size:14px; color:rgba(255,255,255,.7);
+    margin-bottom:16px; text-align:center; line-height:1.6;
+  }
+
+  #mic-btn {
+    width:72px; height:72px; border-radius:50%;
+    border:3px solid rgba(255,255,255,.4);
+    background:rgba(255,255,255,.12); backdrop-filter:blur(12px);
+    color:#fff; font-size:28px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    transition:all .25s;
+  }
+  #mic-btn.listening {
+    border-color:#ff6b35; background:rgba(255,107,53,.2);
+    animation:mic-pulse 1s ease-in-out infinite;
+  }
+  @keyframes mic-pulse {
+    0%,100% { box-shadow:0 0 0 0 rgba(255,107,53,.4); }
+    50%      { box-shadow:0 0 0 18px rgba(255,107,53,0); }
+  }
+
+  /* ── Splash particles ── */
+  .splash { position:fixed; border-radius:50%; pointer-events:none; z-index:70;
+            animation:splash-anim .6s ease-out forwards; }
+  @keyframes splash-anim {
+    0%   { opacity:.9; transform:translate(0,0) scale(1); }
+    100% { opacity:0;  transform:translate(var(--tx),var(--ty)) scale(0.3); }
+  }
+
+  /* ── Intro ── */
+  #intro {
+    position:fixed; inset:0; z-index:200;
+    display:flex; flex-direction:column;
+    align-items:center; justify-content:center;
+    background:rgba(5,20,40,.95); backdrop-filter:blur(4px);
+    transition:opacity .8s;
+  }
+  #intro.hide { opacity:0; pointer-events:none; }
+
+  #intro-panda { font-size:80px; margin-bottom:8px;
+    animation:intro-bounce 1.5s ease-in-out infinite; }
+  @keyframes intro-bounce {
+    0%,100% { transform:translateY(0); }
+    50%      { transform:translateY(-14px); }
+  }
+
+  #intro h1 { font-size:32px; font-weight:900; color:#fff;
+    letter-spacing:.06em; margin-bottom:10px; }
+  #intro p  { font-size:14px; color:rgba(255,255,255,.6);
+    text-align:center; line-height:1.9; margin-bottom:36px; max-width:280px; }
+  #intro p b { color:#7ee8fa; }
+
+  #start-btn {
+    padding:14px 48px; border-radius:50px; border:none;
+    background:linear-gradient(135deg,#0ea5e9,#6366f1);
+    color:#fff; font-size:18px; font-weight:800; cursor:pointer;
+    box-shadow:0 0 32px rgba(99,102,241,.5);
+    transition:transform .15s;
+  }
+  #start-btn:active { transform:scale(.95); }
+</style>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.161.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+
+<canvas id="c"></canvas>
+<button id="back-btn" onclick="history.back()">←</button>
+
+<div id="beat-row"></div>
+<div id="speech-bubble"></div>
+
+<div id="bottom-ui">
+  <div id="hint">「たんたん」「トントンタンタン」などと話してみよう！</div>
+  <button id="mic-btn">🎤</button>
+</div>
+
+<div id="intro">
+  <div id="intro-panda">🐼</div>
+  <h1>おどれ！タンタン</h1>
+  <p>リズム言葉を話すと<br>タンタンがそのリズムで踊るよ！<br><br>
+    <b>たん</b> → 大きくジャンプ<br>
+    <b>とん</b> → 小さくステップ<br><br>
+    「トントンタンタン」など<br>組み合わせて話してみよう！</p>
+  <button id="start-btn">はじめる</button>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { EffectComposer }  from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass }      from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass }      from 'three/addons/postprocessing/OutputPass.js';
+
+const W = () => window.innerWidth, H = () => window.innerHeight;
+
+// ─────────────────────────────────────────────
+// RENDERER  — alpha:false is critical to avoid transparent canvas
+// ─────────────────────────────────────────────
+const renderer = new THREE.WebGLRenderer({
+  canvas: document.getElementById('c'),
+  antialias: true,
+  alpha: false,
+});
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(W(), H());
+renderer.setClearColor(0x010a14, 1);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.1;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+const scene  = new THREE.Scene();
+scene.background = new THREE.Color(0x010a14);
+scene.fog = new THREE.FogExp2(0x010a14, 0.016);
+
+const camera = new THREE.PerspectiveCamera(48, W()/H(), 0.1, 200);
+camera.position.set(0, 3.2, 9.5);
+camera.lookAt(0, 0.8, 0);
+
+// Post-processing
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const bloom = new UnrealBloomPass(new THREE.Vector2(W(), H()), 0.55, 0.4, 0.28);
+composer.addPass(bloom);
+composer.addPass(new OutputPass());
+
+// ─────────────────────────────────────────────
+// LIGHTING
+// ─────────────────────────────────────────────
+const hemi = new THREE.HemisphereLight(0x8ec5fc, 0x0d2137, 0.8);
+scene.add(hemi);
+
+const sun = new THREE.DirectionalLight(0xfff5e0, 1.6);
+sun.position.set(5, 10, 5);
+sun.castShadow = true;
+sun.shadow.mapSize.set(1024, 1024);
+sun.shadow.camera.near = 0.5;
+sun.shadow.camera.far = 30;
+sun.shadow.camera.left = -6; sun.shadow.camera.right = 6;
+sun.shadow.camera.top  = 6; sun.shadow.camera.bottom = -6;
+scene.add(sun);
+
+const rimLight = new THREE.DirectionalLight(0x4fc3f7, 1.8);
+rimLight.position.set(-4, 3, -3);
+scene.add(rimLight);
+
+const underLight = new THREE.PointLight(0x00d4ff, 2.0, 12);
+underLight.position.set(0, -0.8, 0);
+scene.add(underLight);
+
+// ─────────────────────────────────────────────
+// DYNAMIC SKY  — uniforms updated per-beat
+// ─────────────────────────────────────────────
+const skyMat = new THREE.ShaderMaterial({
+  side: THREE.BackSide,
+  uniforms: {
+    colBot: { value: new THREE.Color(0x010a14) },
+    colTop: { value: new THREE.Color(0x021a2e) },
+  },
+  vertexShader: `
+    varying float vY;
+    void main() {
+      vY = position.y;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `,
+  fragmentShader: `
+    uniform vec3 colBot;
+    uniform vec3 colTop;
+    varying float vY;
+    void main() {
+      float t = clamp((vY + 20.0) / 80.0, 0.0, 1.0);
+      gl_FragColor = vec4(mix(colBot, colTop, t*t), 1.0);
+    }
+  `,
+});
+scene.add(new THREE.Mesh(new THREE.SphereGeometry(80, 24, 16), skyMat));
+
+// Background color system
+const skyCurBot = new THREE.Color(0x010a14);
+const skyCurTop = new THREE.Color(0x021a2e);
+const skyTgtBot = new THREE.Color(0x010a14);
+const skyTgtTop = new THREE.Color(0x021a2e);
+
+// Beat palettes: [bot, top, dark-bot, dark-top]
+// big = vivid flash, small = subtle shift
+const BIG_PALETTES = [
+  { b: 0x3d0066, t: 0xaa00ff, db: 0x1a0033, dt: 0x550088 },
+  { b: 0x003d00, t: 0x00e676, db: 0x001a00, dt: 0x007733 },
+  { b: 0x660011, t: 0xff2244, db: 0x330008, dt: 0x880022 },
+  { b: 0x002244, t: 0x0099ff, db: 0x001122, dt: 0x0055aa },
+  { b: 0x553300, t: 0xff9900, db: 0x2a1800, dt: 0xaa5500 },
+  { b: 0x3d1a5c, t: 0xff44cc, db: 0x1a0a2e, dt: 0x882266 },
+  { b: 0x005533, t: 0x00ffaa, db: 0x002a1a, dt: 0x008855 },
+];
+let bgIdx = 0;
+
+function flashBigBg() {
+  const p = BIG_PALETTES[bgIdx % BIG_PALETTES.length];
+  bgIdx++;
+  skyTgtBot.setHex(p.b);
+  skyTgtTop.setHex(p.t);
+  // Fade back to darker tones after 700ms
+  setTimeout(() => {
+    skyTgtBot.setHex(p.db);
+    skyTgtTop.setHex(p.dt);
+  }, 700);
+}
+
+function flashSmallBg() {
+  // Brighten current color briefly
+  const tmpB = skyCurBot.clone().multiplyScalar(3.0);
+  const tmpT = skyCurTop.clone().multiplyScalar(3.0);
+  skyTgtBot.copy(tmpB);
+  skyTgtTop.copy(tmpT);
+  setTimeout(() => {
+    skyTgtBot.copy(skyCurBot);
+    skyTgtTop.copy(skyCurTop);
+  }, 250);
+}
+
+// ─────────────────────────────────────────────
+// WATER SHADER
+// ─────────────────────────────────────────────
+const waterVert = /* glsl */`
+  uniform float time;
+  varying vec2 vUv;
+  varying vec3 vWorldPos;
+  varying vec3 vNormal;
+
+  void main() {
+    vUv = uv;
+    vec3 p = position;
+
+    float a = sin(p.x * 0.40 + time * 0.8) * 0.22;
+    float b = cos(p.z * 0.35 + time * 0.6) * 0.18;
+    float c = sin((p.x + p.z) * 0.28 + time * 1.1) * 0.12;
+    p.y += a + b + c;
+
+    float eps = 0.2;
+    float da = cos(p.x * 0.40 + time * 0.8) * 0.40 * eps;
+    float db2 = cos((p.x + p.z) * 0.28 + time * 1.1) * 0.28 * eps;
+    float ny = 1.0;
+    vNormal = normalize(vec3(-(da + db2), ny, 0.0));
+
+    vWorldPos = (modelMatrix * vec4(p, 1.0)).xyz;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
+  }
+`;
+
+const waterFrag = /* glsl */`
+  uniform float time;
+  uniform vec3 cameraPosition;
+  varying vec2 vUv;
+  varying vec3 vWorldPos;
+  varying vec3 vNormal;
+
+  void main() {
+    vec3 viewDir = normalize(cameraPosition - vWorldPos);
+    float fresnel = pow(1.0 - clamp(dot(vNormal, viewDir), 0.0, 1.0), 3.5);
+
+    vec3 deep    = vec3(0.01, 0.09, 0.22);
+    vec3 shallow = vec3(0.05, 0.38, 0.55);
+    vec3 foam    = vec3(0.60, 0.88, 1.00);
+
+    vec3 col = mix(deep, shallow, fresnel * 0.7);
+
+    vec3 sunDir = normalize(vec3(0.5, 1.0, 0.5));
+    float spec = pow(max(dot(reflect(-sunDir, vNormal), viewDir), 0.0), 80.0);
+    col += foam * spec * 0.9;
+
+    float peak = smoothstep(0.28, 0.48, vWorldPos.y);
+    col = mix(col, foam, peak * 0.35);
+
+    float caus = sin(vWorldPos.x * 4.0 + time * 2.0) * sin(vWorldPos.z * 3.5 + time * 1.7);
+    col += vec3(0.0, 0.12, 0.18) * caus * caus * 0.4;
+
+    float alpha = 0.82 + fresnel * 0.12;
+    gl_FragColor = vec4(col, alpha);
+  }
+`;
+
+const waterMat = new THREE.ShaderMaterial({
+  vertexShader: waterVert,
+  fragmentShader: waterFrag,
+  uniforms: { time: { value: 0 } },
+  transparent: true,
+  side: THREE.FrontSide,
+  depthWrite: false,
+});
+const water = new THREE.Mesh(new THREE.PlaneGeometry(60, 60, 120, 120), waterMat);
+water.rotation.x = -Math.PI / 2;
+water.position.y = -0.05;
+scene.add(water);
+
+// ─────────────────────────────────────────────
+// FLOATING PARTICLES
+// ─────────────────────────────────────────────
+const SPARK = 300;
+const sPos = new Float32Array(SPARK * 3);
+for (let i = 0; i < SPARK; i++) {
+  sPos[i*3  ] = (Math.random()-0.5)*20;
+  sPos[i*3+1] =  Math.random()*5 - 0.5;
+  sPos[i*3+2] = (Math.random()-0.5)*20;
+}
+const sparkGeo = new THREE.BufferGeometry();
+sparkGeo.setAttribute('position', new THREE.BufferAttribute(sPos, 3));
+const sparkMat = new THREE.PointsMaterial({ color:0x7ee8fa, size:0.05, transparent:true, opacity:0.6 });
+scene.add(new THREE.Points(sparkGeo, sparkMat));
+
+// ─────────────────────────────────────────────
+// PANDA CHARACTER  (たんたん — square plush style)
+// ─────────────────────────────────────────────
+function mkMat(col, roughness=0.65, emissive=0x000000, emInt=0) {
+  return new THREE.MeshStandardMaterial({ color:col, roughness, metalness:0.05,
+    emissive, emissiveIntensity:emInt });
+}
+const wMat   = mkMat(0xf0f0f0);
+const bMat   = mkMat(0x181818, 0.7);
+const gMat   = mkMat(0xdddddd, 0.7);
+const pinkMat = mkMat(0xffb6c1, 0.6);
+
+function createPanda() {
+  const g = new THREE.Group();
+
+  // ── body  (boxy square style like the plush) ──
+  const body = new THREE.Mesh(new THREE.SphereGeometry(0.65, 12, 9), wMat.clone());
+  body.scale.set(1.08, 1.0, 0.88);  // slightly wide + flat = boxy
+  body.castShadow = true;
+  g.add(body);
+
+  // ── head ──
+  const head = new THREE.Group();
+  const headMesh = new THREE.Mesh(new THREE.SphereGeometry(0.50, 12, 9), wMat.clone());
+  headMesh.scale.set(1.05, 1.0, 0.92);  // slightly square
+  headMesh.castShadow = true;
+  head.add(headMesh);
+
+  // round ears (black, sitting on top)
+  [[-0.34, 0.42], [0.34, 0.42]].forEach(([x, y]) => {
+    const ear = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 6), bMat.clone());
+    ear.scale.set(1, 0.95, 0.85);
+    ear.position.set(x, y, 0);
+    head.add(ear);
+  });
+
+  // eye patches
+  [[-0.185], [0.185]].forEach(([x]) => {
+    const ep = new THREE.Mesh(new THREE.SphereGeometry(0.17, 8, 6), bMat.clone());
+    ep.scale.set(1.0, 0.82, 0.52);
+    ep.position.set(x, 0.02, 0.42);
+    head.add(ep);
+  });
+
+  // big round eyes (more prominent, plush-like)
+  [[-0.182, 0.02, 0.46], [0.182, 0.02, 0.46]].forEach(([x,y,z]) => {
+    const eyeW = new THREE.Mesh(new THREE.SphereGeometry(0.082, 8, 6),
+      new THREE.MeshStandardMaterial({ color:0xffffff, emissive:0x888888, emissiveIntensity:.5 }));
+    eyeW.position.set(x, y, z);
+    head.add(eyeW);
+    const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.050, 6, 5), bMat.clone());
+    pupil.position.set(x, y, z + 0.046);
+    head.add(pupil);
+    // gleam
+    const gleam = new THREE.Mesh(new THREE.SphereGeometry(0.020, 4, 4),
+      new THREE.MeshStandardMaterial({ color:0xffffff, emissive:0xffffff, emissiveIntensity:1.2 }));
+    gleam.position.set(x + 0.024, y + 0.024, z + 0.070);
+    head.add(gleam);
+  });
+
+  // pink nose (like the plush)
+  const nose = new THREE.Mesh(new THREE.SphereGeometry(0.062, 8, 6), pinkMat.clone());
+  nose.scale.set(1.3, 0.8, 0.75);
+  nose.position.set(0, -0.12, 0.468);
+  head.add(nose);
+
+  // mouth
+  const mouthL = new THREE.Mesh(new THREE.SphereGeometry(0.026, 4, 4), bMat.clone());
+  mouthL.scale.set(0.6, 1, 0.5);
+  mouthL.position.set(-0.052, -0.20, 0.455);
+  head.add(mouthL);
+  const mouthR = mouthL.clone();
+  mouthR.position.x = 0.052;
+  head.add(mouthR);
+
+  head.position.set(0, 1.10, 0);
+  g.add(head);
+
+  // ── belly patch ──
+  const belly = new THREE.Mesh(new THREE.CircleGeometry(0.30, 16), gMat.clone());
+  belly.position.set(0, -0.06, 0.60);
+  g.add(belly);
+
+  // ── arms  (SHORT & STUBBY — like the plush) ──
+  function makeArm(side) {
+    const grp = new THREE.Group();
+    // Short cylinder upper arm
+    const arm = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.13, 0.11, 0.28, 7),
+      wMat.clone()
+    );
+    arm.castShadow = true;
+    arm.position.y = -0.14;
+    grp.add(arm);
+    // Black paw
+    const hand = new THREE.Mesh(new THREE.SphereGeometry(0.14, 8, 6), bMat.clone());
+    hand.scale.set(1, 0.82, 1);
+    hand.castShadow = true;
+    hand.position.y = -0.29;
+    grp.add(hand);
+    // Stick out to sides, slightly downward
+    grp.position.set(side * 0.76, 0.10, 0);
+    grp.rotation.z = side * 0.55;  // arms splay out naturally
+    return grp;
+  }
+  const lArm = makeArm(-1);
+  const rArm = makeArm( 1);
+  g.add(lArm, rArm);
+
+  // ── legs  (SHORT & STUBBY) ──
+  function makeLeg(side) {
+    const grp = new THREE.Group();
+    const leg = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.15, 0.14, 0.26, 7),
+      wMat.clone()
+    );
+    leg.castShadow = true;
+    leg.position.y = -0.13;
+    grp.add(leg);
+    // Black foot (wide and flat)
+    const foot = new THREE.Mesh(new THREE.SphereGeometry(0.165, 8, 6), bMat.clone());
+    foot.scale.set(1.1, 0.60, 1.5);
+    foot.castShadow = true;
+    foot.position.set(0, -0.26, 0.06);
+    grp.add(foot);
+    grp.position.set(side * 0.30, -0.62, 0);
+    return grp;
+  }
+  const lLeg = makeLeg(-1);
+  const rLeg = makeLeg( 1);
+  g.add(lLeg, rLeg);
+
+  g.userData = { head, lArm, rArm, lLeg, rLeg, body };
+  return g;
+}
+
+const panda = createPanda();
+panda.position.set(0, 0.65, 0);
+scene.add(panda);
+
+// shadow
+const shadowPlane = new THREE.Mesh(
+  new THREE.CircleGeometry(1.4, 24),
+  new THREE.MeshBasicMaterial({ color:0x000000, transparent:true, opacity:0.22 })
+);
+shadowPlane.rotation.x = -Math.PI/2;
+shadowPlane.position.y = 0.01;
+scene.add(shadowPlane);
+
+// ─────────────────────────────────────────────
+// SPRING DANCE SYSTEM
+// ─────────────────────────────────────────────
+const STIFF = 26, DAMP = 6.5;
+
+function springStep(s, tgt, dt) {
+  const f = (tgt - s.x) * STIFF - s.v * DAMP;
+  s.v += f * dt;
+  s.x += s.v * dt;
+}
+
+const sp = {
+  bodyY:  { x:0, v:0 },
+  bodyS:  { x:1, v:0 },
+  headZ:  { x:0, v:0 },
+  headY:  { x:0, v:0 },
+  lArmZ:  { x: 0.55, v:0 },   // arms already slightly out (plush style)
+  rArmZ:  { x:-0.55, v:0 },
+  lLegZ:  { x:0, v:0 },
+  rLegZ:  { x:0, v:0 },
+  pandaZ: { x:0, v:0 },
+  pandaY: { x:0, v:0 },       // whole-body Y spring for jump
+};
+
+const tgt = {
+  bodyY:  0,
+  bodyS:  1,
+  headZ:  0,
+  headY:  0,
+  lArmZ:  0.55,
+  rArmZ: -0.55,
+  lLegZ:  0,
+  rLegZ:  0,
+  pandaZ: 0,
+  pandaY: 0,
+};
+
+let isPlaying = false;
+let idleClock = 0;
+
+function setIdle() {
+  isPlaying = false;
+  Object.assign(tgt, {
+    bodyY:0, bodyS:1,
+    headZ:0, headY:0,
+    lArmZ: 0.55, rArmZ:-0.55,
+    lLegZ:0, rLegZ:0,
+    pandaZ:0, pandaY:0,
+  });
+}
+
+function triggerBig(sign=1) {
+  // Jump!
+  Object.assign(tgt, {
+    pandaY: 1.3,
+    bodyS: 0.80,
+    lArmZ: 1.50,  rArmZ:-1.50,
+    lLegZ: 0.30*sign,  rLegZ:-0.30*sign,
+    headZ: 0.14 * sign,
+    headY: 0.08,
+    pandaZ: 0.06 * sign,
+  });
+  spawnSplash();
+  flashBigBg();
+  setTimeout(() => {
+    tgt.pandaY = 0;
+    tgt.bodyS  = 1.10;
+    tgt.lArmZ  = 0.55; tgt.rArmZ = -0.55;
+    tgt.lLegZ  = 0;    tgt.rLegZ = 0;
+    tgt.headZ  = 0;    tgt.headY = 0;
+    tgt.pandaZ = 0;
+    setTimeout(() => { tgt.bodyS = 1; }, 180);
+  }, 220);
+}
+
+function triggerSmall(sign=1) {
+  Object.assign(tgt, {
+    pandaY: 0.55,
+    bodyS: 0.94,
+    lArmZ: 0.95,  rArmZ:-0.95,
+    lLegZ: 0.12*sign,  rLegZ:-0.12*sign,
+    headZ: 0.09 * sign,
+    pandaZ: 0.04 * sign,
+  });
+  flashSmallBg();
+  setTimeout(() => {
+    tgt.pandaY = 0;
+    tgt.bodyS  = 1.03;
+    tgt.lArmZ  = 0.55; tgt.rArmZ = -0.55;
+    tgt.lLegZ  = 0;    tgt.rLegZ = 0;
+    tgt.headZ  = 0;    tgt.pandaZ = 0;
+    setTimeout(() => { tgt.bodyS = 1; }, 110);
+  }, 170);
+}
+
+// ─────────────────────────────────────────────
+// AUDIO
+// ─────────────────────────────────────────────
+let audioCtx = null;
+function ensureAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+}
+
+function playBig() {
+  ensureAudio();
+  const osc = audioCtx.createOscillator();
+  const g   = audioCtx.createGain();
+  osc.connect(g); g.connect(audioCtx.destination);
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(90, audioCtx.currentTime);
+  osc.frequency.exponentialRampToValueAtTime(44, audioCtx.currentTime + 0.35);
+  g.gain.setValueAtTime(0.55, audioCtx.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.4);
+  osc.start(); osc.stop(audioCtx.currentTime + 0.4);
+  const osc2 = audioCtx.createOscillator();
+  const g2   = audioCtx.createGain();
+  osc2.connect(g2); g2.connect(audioCtx.destination);
+  osc2.type = 'square';
+  osc2.frequency.setValueAtTime(160, audioCtx.currentTime);
+  g2.gain.setValueAtTime(0.15, audioCtx.currentTime);
+  g2.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.07);
+  osc2.start(); osc2.stop(audioCtx.currentTime + 0.08);
+}
+
+function playSmall() {
+  ensureAudio();
+  const osc = audioCtx.createOscillator();
+  const g   = audioCtx.createGain();
+  osc.connect(g); g.connect(audioCtx.destination);
+  osc.type = 'triangle';
+  osc.frequency.setValueAtTime(320, audioCtx.currentTime);
+  osc.frequency.exponentialRampToValueAtTime(220, audioCtx.currentTime + 0.18);
+  g.gain.setValueAtTime(0.3, audioCtx.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.22);
+  osc.start(); osc.stop(audioCtx.currentTime + 0.22);
+}
+
+// ─────────────────────────────────────────────
+// WATER SPLASH  (DOM particles)
+// ─────────────────────────────────────────────
+function spawnSplash() {
+  const cx = window.innerWidth / 2;
+  const cy = window.innerHeight * 0.62;
+  for (let i = 0; i < 10; i++) {
+    const el = document.createElement('div');
+    el.className = 'splash';
+    const size  = 6 + Math.random() * 12;
+    const angle = Math.random() * Math.PI * 2;
+    const dist  = 50 + Math.random() * 90;
+    el.style.cssText = `
+      width:${size}px; height:${size}px;
+      left:${cx + Math.cos(angle)*20}px; top:${cy}px;
+      background:rgba(100,220,255,0.75);
+      --tx:${Math.cos(angle)*dist}px;
+      --ty:${-45 - Math.random()*70}px;
+      animation-delay:${Math.random()*0.1}s;
+    `;
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 750);
+  }
+}
+
+// ─────────────────────────────────────────────
+// RHYTHM PARSING
+// ─────────────────────────────────────────────
+function parseBeats(text) {
+  let t = text.toLowerCase();
+  t = t.replace(/たん|タン|ダン|ばん|バン|ぱん|パン|どん|ドン/g, 'B');
+  t = t.replace(/とん|トン|ぽん|ポン|こん|コン|さん|サン/g, 'S');
+  t = t.replace(/た|タ|ば|バ|ぱ|パ|だ|ダ/g, 'b');
+  t = t.replace(/と|ト|ぽ|ポ|て|テ/g, 's');
+  const beats = [];
+  for (const ch of t) {
+    if (ch === 'B' || ch === 'b') beats.push('big');
+    else if (ch === 'S' || ch === 's') beats.push('small');
+  }
+  return beats.slice(0, 8);
+}
+
+// ─────────────────────────────────────────────
+// BEAT UI
+// ─────────────────────────────────────────────
+const beatRow = document.getElementById('beat-row');
+let   beatDots = [];
+
+function showBeats(beats) {
+  beatRow.innerHTML = '';
+  beatDots = [];
+  beats.forEach(type => {
+    const d = document.createElement('div');
+    d.className = `beat-dot ${type}`;
+    d.style.setProperty('--gc', type==='big' ? '#ff6b35' : '#4fc3f7');
+    beatRow.appendChild(d);
+    beatDots.push(d);
+  });
+}
+
+function highlightBeat(i) {
+  beatDots.forEach((d, j) => d.classList.toggle('active', j === i));
+}
+
+function clearBeats() { beatRow.innerHTML = ''; beatDots = []; }
+
+// ─────────────────────────────────────────────
+// PLAY SEQUENCE
+// ─────────────────────────────────────────────
+const BEAT_MS = 420;
+
+function playSequence(beats) {
+  if (beats.length === 0) return;
+  isPlaying = true;
+  showBeats(beats);
+
+  beats.forEach((beat, i) => {
+    setTimeout(() => {
+      highlightBeat(i);
+      const sign = (i % 2 === 0) ? 1 : -1;
+      if (beat === 'big')  { triggerBig(sign);   playBig(); }
+      else                 { triggerSmall(sign); playSmall(); }
+
+      if (i === beats.length - 1) {
+        setTimeout(() => {
+          beatDots.forEach(d => d.classList.remove('active'));
+          setTimeout(() => { clearBeats(); setIdle(); }, 600);
+        }, 300);
+      }
+    }, i * BEAT_MS);
+  });
+}
+
+// ─────────────────────────────────────────────
+// SPEECH RECOGNITION
+// ─────────────────────────────────────────────
+const bubble  = document.getElementById('speech-bubble');
+const micBtn  = document.getElementById('mic-btn');
+const hintEl  = document.getElementById('hint');
+const SpeechR = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+let recog = null;
+let listening = false;
+
+function showBubble(txt) { bubble.textContent = txt; bubble.classList.add('show'); }
+function hideBubble()    { bubble.classList.remove('show'); }
+
+function startListen() {
+  if (!SpeechR) { hintEl.textContent = '⚠️ 音声認識が使えません'; return; }
+  if (listening) return;
+  listening = true;
+  micBtn.classList.add('listening');
+  micBtn.textContent = '⏹';
+
+  recog = new SpeechR();
+  recog.lang = 'ja-JP';
+  recog.interimResults = true;
+
+  recog.onresult = (e) => {
+    const text = Array.from(e.results).map(r => r[0].transcript).join('');
+    showBubble(`「${text}」`);
+    if (e.results[e.results.length-1].isFinal) {
+      stopListen();
+      const beats = parseBeats(text);
+      if (beats.length > 0) {
+        setTimeout(() => playSequence(beats), 200);
+      } else {
+        showBubble('リズム言葉が聞き取れなかったよ😅');
+        setTimeout(hideBubble, 1800);
+      }
+    }
+  };
+
+  recog.onerror = () => { stopListen(); };
+  recog.onend   = () => { if (listening) stopListen(); };
+  recog.start();
+}
+
+function stopListen() {
+  listening = false;
+  micBtn.classList.remove('listening');
+  micBtn.textContent = '🎤';
+  if (recog) { try { recog.stop(); } catch(e){} recog = null; }
+}
+
+micBtn.addEventListener('click', () => {
+  ensureAudio();
+  if (listening) stopListen();
+  else startListen();
+});
+
+window._dance = { parseBeats, playSequence };
+
+// ─────────────────────────────────────────────
+// INTRO
+// ─────────────────────────────────────────────
+const introEl = document.getElementById('intro');
+document.getElementById('start-btn').addEventListener('click', () => {
+  ensureAudio();
+  introEl.classList.add('hide');
+  setTimeout(() => introEl.style.display='none', 900);
+});
+
+// ─────────────────────────────────────────────
+// RESIZE
+// ─────────────────────────────────────────────
+window.addEventListener('resize', () => {
+  camera.aspect = W()/H();
+  camera.updateProjectionMatrix();
+  renderer.setSize(W(), H());
+  composer.setSize(W(), H());
+  bloom.resolution.set(W(), H());
+});
+
+// ─────────────────────────────────────────────
+// RENDER LOOP
+// ─────────────────────────────────────────────
+const clock = new THREE.Clock();
+const { head, lArm, rArm, lLeg, rLeg, body } = panda.userData;
+let camIdleT = 0;
+
+(function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.05);
+  const t  = clock.elapsedTime;
+
+  // water animation
+  waterMat.uniforms.time.value = t;
+
+  // shimmer light
+  underLight.intensity = 1.5 + Math.sin(t * 3.1) * 0.5;
+  underLight.color.setHSL(0.55 + Math.sin(t * 0.7) * 0.04, 1, 0.55);
+
+  // ── idle sway (more visible than before) ──
+  if (!isPlaying) {
+    idleClock += dt;
+    // body bob
+    tgt.pandaY  = Math.sin(idleClock * 1.8) * 0.06;
+    tgt.bodyS   = 1 + Math.sin(idleClock * 2.2) * 0.028;
+    // head nod
+    tgt.headZ   = Math.sin(idleClock * 1.1 + 0.5) * 0.14;
+    tgt.headY   = Math.sin(idleClock * 0.9) * 0.04;
+    // gentle arm wave
+    tgt.lArmZ   =  0.55 + Math.sin(idleClock * 1.4) * 0.12;
+    tgt.rArmZ   = -0.55 - Math.sin(idleClock * 1.4 + 0.6) * 0.12;
+    // hip sway
+    tgt.pandaZ  = Math.sin(idleClock * 1.1) * 0.06;
+    // feet tapping
+    tgt.lLegZ   =  Math.sin(idleClock * 2.0) * 0.04;
+    tgt.rLegZ   = -Math.sin(idleClock * 2.0 + Math.PI) * 0.04;
+  }
+
+  // spring update
+  for (const key of Object.keys(sp)) springStep(sp[key], tgt[key], dt);
+
+  // ── apply to panda ──
+  panda.position.y = 0.65 + sp.pandaY.x;
+  panda.rotation.z = sp.pandaZ.x;
+
+  body.scale.y = sp.bodyS.x;
+  body.scale.x = 2.0 - sp.bodyS.x;
+
+  head.rotation.z = sp.headZ.x;
+  head.position.y = 1.10 + sp.headY.x;
+
+  lArm.rotation.z = sp.lArmZ.x;
+  rArm.rotation.z = sp.rArmZ.x;
+  lLeg.rotation.z = sp.lLegZ.x;
+  rLeg.rotation.z = sp.rLegZ.x;
+
+  // shadow
+  shadowPlane.material.opacity = 0.22 - sp.pandaY.x * 0.06;
+  shadowPlane.scale.setScalar(1 - sp.pandaY.x * 0.08);
+
+  // sparkles drift up
+  const sarr = sparkGeo.attributes.position.array;
+  for (let i = 0; i < SPARK; i++) {
+    sarr[i*3+1] += 0.003;
+    if (sarr[i*3+1] > 5) sarr[i*3+1] = -0.5;
+  }
+  sparkGeo.attributes.position.needsUpdate = true;
+
+  // camera gentle sway
+  camIdleT += dt * 0.3;
+  camera.position.x = Math.sin(camIdleT) * 0.15;
+  camera.lookAt(0, 0.8, 0);
+
+  // ── background color lerp ──
+  const lerpSpeed = dt * 5.0;
+  skyCurBot.lerp(skyTgtBot, lerpSpeed);
+  skyCurTop.lerp(skyTgtTop, lerpSpeed);
+  skyMat.uniforms.colBot.value.copy(skyCurBot);
+  skyMat.uniforms.colTop.value.copy(skyCurTop);
+  // Keep fog/background in sync with sky bottom
+  scene.fog.color.copy(skyCurBot);
+  scene.background.copy(skyCurBot);
+  renderer.setClearColor(skyCurBot, 1);
+
+  composer.render();
+})();
+</script>
+</body>
+</html>

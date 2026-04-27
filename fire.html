@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>火を消せ！</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;700;900&family=Noto+Sans+JP:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+        html,body{width:100%;height:100%;background:#000;overflow:hidden;
+            font-family:'Noto Sans JP','Outfit',sans-serif;color:#fff}
+        canvas{display:block}
+
+        .back{
+            position:fixed;top:1.1rem;left:1.2rem;z-index:200;
+            text-decoration:none;color:rgba(255,255,255,.45);
+            font-family:'Outfit',sans-serif;font-size:.72rem;letter-spacing:.14em;
+            border:1px solid rgba(255,255,255,.14);border-radius:100px;
+            padding:.36rem .88rem;transition:all .2s;
+        }
+        .back:hover{color:#fff;border-color:rgba(255,255,255,.4);background:rgba(255,255,255,.06)}
+
+        .title{
+            position:fixed;top:1.1rem;left:50%;transform:translateX(-50%);
+            z-index:200;pointer-events:none;
+            font-family:'Outfit',sans-serif;font-weight:900;
+            font-size:clamp(.85rem,2vw,1rem);letter-spacing:.05em;
+            color:rgba(255,255,255,.78);
+            text-shadow:0 0 20px rgba(255,120,30,.5);
+            white-space:nowrap;
+        }
+
+        .meter-wrap{
+            position:fixed;top:3.2rem;left:50%;transform:translateX(-50%);
+            z-index:200;pointer-events:none;
+            display:flex;flex-direction:column;align-items:center;gap:.35rem;
+        }
+        .meter-lbl{font-family:'Outfit',sans-serif;font-size:.6rem;letter-spacing:.18em;text-transform:uppercase;color:rgba(255,255,255,.36)}
+        .meter-bars{display:flex;gap:4px;align-items:flex-end}
+
+        .wcnt{
+            position:fixed;top:3.1rem;right:1.2rem;z-index:200;pointer-events:none;
+            display:flex;flex-direction:column;align-items:center;gap:.18rem;
+        }
+        .wcnt-val{font-family:'Outfit',sans-serif;font-weight:900;font-size:1.4rem;color:#5ec8f2;line-height:1}
+        .wcnt-lbl{font-size:.52rem;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.3);font-family:'Outfit',sans-serif}
+        .wcnt-drops{display:flex;gap:2px;flex-wrap:wrap;max-width:80px;justify-content:center}
+        .drop{font-size:.82rem;opacity:.18;transition:opacity .3s}
+        .drop.on{opacity:1}
+
+        .msg{
+            position:fixed;bottom:7rem;left:50%;transform:translateX(-50%);
+            z-index:200;pointer-events:none;
+            font-family:'Outfit',sans-serif;font-weight:700;
+            font-size:clamp(.78rem,2vw,.92rem);letter-spacing:.03em;
+            color:#fff;text-shadow:0 2px 14px rgba(0,0,0,.95);
+            white-space:nowrap;text-align:center;
+        }
+
+        .actions{
+            position:fixed;bottom:1.5rem;left:50%;transform:translateX(-50%);
+            display:flex;gap:.8rem;z-index:200;
+        }
+        .act-btn{
+            display:flex;flex-direction:column;align-items:center;gap:.38rem;
+            border-radius:20px;padding:.88rem 1.5rem .82rem;
+            cursor:pointer;border:none;color:#fff;min-width:108px;
+            -webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);
+            transition:transform .2s,box-shadow .2s,background .2s;
+        }
+        .btn-water{
+            background:rgba(0,80,150,.78);
+            border:1px solid rgba(94,200,242,.42);
+            box-shadow:0 0 20px rgba(94,200,242,.18);
+        }
+        .btn-water:hover:not(.disabled){background:rgba(0,100,190,.88);box-shadow:0 0 36px rgba(94,200,242,.38);transform:translateY(-3px)}
+        .btn-log{
+            background:rgba(90,38,0,.78);
+            border:1px solid rgba(200,140,60,.42);
+            box-shadow:0 0 20px rgba(200,140,60,.14);
+        }
+        .btn-log:hover:not(.disabled){background:rgba(120,55,0,.88);box-shadow:0 0 36px rgba(200,140,60,.34);transform:translateY(-3px)}
+        .act-btn:active:not(.disabled){transform:translateY(0)}
+        .act-btn.disabled{opacity:.28;cursor:not-allowed;transform:none!important}
+        .btn-icon{font-size:1.45rem;line-height:1}
+        .btn-lbl{font-size:.7rem;font-weight:700;letter-spacing:.03em;color:rgba(255,255,255,.82)}
+
+        .overlay{
+            position:fixed;inset:0;z-index:300;
+            display:flex;align-items:center;justify-content:center;
+            background:rgba(0,0,0,.72);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);
+            opacity:0;pointer-events:none;transition:opacity .5s;
+        }
+        .overlay.show{opacity:1;pointer-events:auto}
+        .ov-box{
+            background:rgba(10,10,24,.92);
+            border:1px solid rgba(255,255,255,.15);border-radius:28px;
+            padding:2.4rem 3.2rem;text-align:center;
+            transform:scale(.85);transition:transform .5s;
+        }
+        .overlay.show .ov-box{transform:scale(1)}
+        .ov-title{font-size:2rem;font-family:'Outfit',sans-serif;font-weight:900;margin-bottom:.5rem}
+        .ov-sub{font-size:.82rem;color:rgba(255,255,255,.48);margin-bottom:1.8rem;letter-spacing:.04em}
+        .retry-btn{
+            background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.25);
+            border-radius:100px;padding:.55rem 2rem;color:#fff;
+            font-family:'Outfit',sans-serif;font-weight:700;font-size:.8rem;
+            cursor:pointer;letter-spacing:.06em;transition:background .2s,border-color .2s;
+        }
+        .retry-btn:hover{background:rgba(255,255,255,.2);border-color:rgba(255,255,255,.5)}
+    </style>
+</head>
+<body>
+
+<a href="index.html" class="back">← もどる</a>
+<div class="title">🚒 消防車で火を消せ！</div>
+
+<div class="meter-wrap">
+    <div class="meter-lbl">火の強さ</div>
+    <div class="meter-bars" id="meterBars"></div>
+</div>
+
+<div class="wcnt">
+    <div class="wcnt-val" id="wVal">0</div>
+    <div class="wcnt-lbl">💧 / 6</div>
+    <div class="wcnt-drops" id="wDrops"></div>
+</div>
+
+<div class="msg" id="msg">🔥 火が燃えている！水をかけろ！</div>
+
+<div class="actions">
+    <button class="act-btn btn-water" id="btnW">
+        <span class="btn-icon">💧</span>
+        <span class="btn-lbl">水をかける</span>
+    </button>
+    <button class="act-btn btn-log" id="btnL">
+        <span class="btn-icon">🪵</span>
+        <span class="btn-lbl">薪を投げる</span>
+    </button>
+</div>
+
+<div class="overlay" id="overlay">
+    <div class="ov-box">
+        <div class="ov-title" id="ovTitle">🎉</div>
+        <div class="ov-sub"   id="ovSub"></div>
+        <button class="retry-btn" id="btnRetry">もう一度あそぶ</button>
+    </div>
+</div>
+
+<script type="importmap">
+{
+    "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.161/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.161/examples/jsm/"
+    }
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+
+// ══════════════════════════════════════════════
+// RENDERER  —  alpha:false, direct render (no post-processing)
+// ══════════════════════════════════════════════
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.setClearColor(0x060210, 1);          // explicit opaque bg
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+
+// Camera
+const camera = new THREE.PerspectiveCamera(60, innerWidth/innerHeight, 0.1, 80);
+function updateCamera(){
+    const asp = innerWidth/innerHeight;
+    camera.aspect = asp;
+    camera.fov = asp < 0.85 ? 72 : 58;
+    camera.position.set(asp < 0.85 ? -0.2 : -0.5,
+                        asp < 0.85 ?  3.5 :  4.0,
+                        asp < 0.85 ?  9.0 : 11.0);
+    camera.lookAt(0.2, 1.4, 0);
+    camera.updateProjectionMatrix();
+}
+updateCamera();
+
+// ══════════════════════════════════════════════
+// GAME STATE
+// ══════════════════════════════════════════════
+let fireIntensity = 5;
+let waterHits     = 0;
+let gameState     = 'playing';
+
+// ══════════════════════════════════════════════
+// GROUND  —  MeshBasicMaterial (no lighting required)
+// ══════════════════════════════════════════════
+const ground = new THREE.Mesh(
+    new THREE.PlaneGeometry(28, 18),
+    new THREE.MeshBasicMaterial({ color: 0x080614 })
+);
+ground.rotation.x = -Math.PI/2;
+scene.add(ground);
+
+// Fire glow disc on ground
+const glowGround = new THREE.Mesh(
+    new THREE.PlaneGeometry(4.5, 3),
+    new THREE.MeshBasicMaterial({ color: 0xff3300, transparent: true, opacity: 0,
+        depthWrite: false, blending: THREE.AdditiveBlending })
+);
+glowGround.rotation.x = -Math.PI/2;
+glowGround.position.set(0.3, 0.02, 0);
+scene.add(glowGround);
+
+// ══════════════════════════════════════════════
+// BUILDING  (right side, MeshBasicMaterial)
+// ══════════════════════════════════════════════
+const bldg = new THREE.Group();
+bldg.position.set(1.4, 0, -0.5);
+scene.add(bldg);
+
+const wallMat = new THREE.MeshBasicMaterial({ color: 0x1e1a2e });
+const roofMat = new THREE.MeshBasicMaterial({ color: 0x120f1e });
+
+{ const m=new THREE.Mesh(new THREE.BoxGeometry(2.8,3.4,1.2),wallMat); m.position.set(0,1.7,0); bldg.add(m); }
+{ const m=new THREE.Mesh(new THREE.BoxGeometry(3.1,0.25,1.4),roofMat); m.position.set(0,3.52,0); bldg.add(m); }
+
+// Glowing windows (additive blend — always bright)
+const wins = [];
+[[-0.65, 2.4], [0.65, 2.4], [-0.65, 1.2], [0.65, 1.2]].forEach(([x, y]) => {
+    const wm = new THREE.MeshBasicMaterial({
+        color: 0xff2200, transparent: true, opacity: 0.95,
+        blending: THREE.AdditiveBlending
+    });
+    const w = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.52, 0.04), wm);
+    w.position.set(x, y, 0.62);
+    bldg.add(w); wins.push(wm);
+});
+// Door
+{ const m=new THREE.Mesh(new THREE.BoxGeometry(0.6,0.92,0.04),new THREE.MeshBasicMaterial({color:0x040306})); m.position.set(0,0.46,0.62); bldg.add(m); }
+
+
+// ══════════════════════════════════════════════
+// FIRE TRUCK  (left side, MeshBasicMaterial)
+// ══════════════════════════════════════════════
+const truck = new THREE.Group();
+truck.position.set(-2.8, 0, 0.2);
+scene.add(truck);
+
+const tRedM   = new THREE.MeshBasicMaterial({ color: 0xcc1212 });
+const tDarkM  = new THREE.MeshBasicMaterial({ color: 0x0d0d0d });
+const tChrM   = new THREE.MeshBasicMaterial({ color: 0xbbbbbb });
+const tSilM   = new THREE.MeshBasicMaterial({ color: 0xcccccc });
+const tYellM  = new THREE.MeshBasicMaterial({ color: 0xddaa00 });
+
+// Body
+{ const m=new THREE.Mesh(new THREE.BoxGeometry(3.0,0.85,1.05),tRedM); m.position.set(0,0.55,0); truck.add(m); }
+// Cab
+{ const m=new THREE.Mesh(new THREE.BoxGeometry(0.95,0.95,1.05),tRedM); m.position.set(1.2,0.98,0); truck.add(m); }
+// Windshield
+{ const m=new THREE.Mesh(new THREE.BoxGeometry(0.04,0.44,0.78),new THREE.MeshBasicMaterial({color:0x6688aa,transparent:true,opacity:0.5})); m.position.set(1.7,1.04,0); truck.add(m); }
+// Water tank
+const wtank = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.34, 1.82, 12), tSilM);
+wtank.rotation.z = Math.PI/2; wtank.position.set(-0.35, 1.1, 0); truck.add(wtank);
+// Ladder rails
+[-0.38, 0.38].forEach(z => {
+    const lad = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.07, 0.1), tYellM);
+    lad.position.set(-0.2, 1.05, z); truck.add(lad);
+});
+for(let rx=-0.8; rx<=0.8; rx+=0.38){
+    const rung = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.055, 0.76), tYellM);
+    rung.position.set(rx, 1.07, 0); truck.add(rung);
+}
+// Wheels
+[[-0.95,-0.52],[0.95,-0.52],[-0.95,0.52],[0.95,0.52]].forEach(([x,z])=>{
+    const wh = new THREE.Mesh(new THREE.CylinderGeometry(0.31,0.31,0.15,10), tDarkM);
+    wh.rotation.x=Math.PI/2; wh.position.set(x*1.05,0.33,z*0.57); truck.add(wh);
+    const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.09,0.09,0.17,8), tChrM);
+    hub.rotation.x=Math.PI/2; hub.position.set(x*1.05,0.33,z*0.57+(z>0?.1:-.1)); truck.add(hub);
+});
+// Hose nozzle
+const hoseM = new THREE.Mesh(new THREE.CylinderGeometry(0.052,0.072,0.52,8),
+    new THREE.MeshBasicMaterial({ color: 0x4488bb }));
+hoseM.rotation.z = -Math.PI/2.2; hoseM.position.set(1.75, 0.98, 0); truck.add(hoseM);
+// Flashing lights
+const fl1M = new THREE.MeshBasicMaterial({ color: 0x0033ff, blending: THREE.AdditiveBlending });
+const fl2M = new THREE.MeshBasicMaterial({ color: 0xff0000, blending: THREE.AdditiveBlending });
+const fl1 = new THREE.Mesh(new THREE.SphereGeometry(0.09,8,6), fl1M);
+const fl2 = new THREE.Mesh(new THREE.SphereGeometry(0.09,8,6), fl2M);
+fl1.position.set(0.7,1.52, 0.28); truck.add(fl1);
+fl2.position.set(0.7,1.52,-0.28); truck.add(fl2);
+
+
+// ══════════════════════════════════════════════
+// LAVA BASE SHADER  (procedural FBM, AdditiveBlending)
+// ══════════════════════════════════════════════
+const NOISE2D = `
+float _h2(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+float _n2(vec2 p){
+    vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);
+    return mix(mix(_h2(i),_h2(i+vec2(1,0)),f.x),mix(_h2(i+vec2(0,1)),_h2(i+vec2(1,1)),f.x),f.y);
+}
+float fbm2(vec2 p){float v=0.,a=.5;for(int i=0;i<5;i++){v+=a*_n2(p);p*=2.1;p+=vec2(1.7,9.2);a*=.5;}return v;}
+`;
+const lavaUni = { uTime: { value: 0 }, uInt: { value: 0.6 } };
+const lavaMat = new THREE.ShaderMaterial({
+    uniforms: lavaUni,
+    vertexShader: `varying vec2 vUv;
+void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }`,
+    fragmentShader: `precision highp float;
+uniform float uTime, uInt;
+varying vec2 vUv;
+${NOISE2D}
+void main(){
+    vec2 p = vUv*4.0;
+    vec2 q = vec2(fbm2(p+uTime*.42), fbm2(p+vec2(1.7,9.2)));
+    vec2 r = vec2(fbm2(p+q+uTime*.28), fbm2(p+q+vec2(8.3,2.8)-uTime*.2));
+    float h = fbm2(p+r);
+    vec3 col = mix(vec3(.72,0.,0.), vec3(.98,.35,0.), smoothstep(.28,.50,h));
+    col = mix(col, vec3(1.,.76,.1),  smoothstep(.50,.68,h));
+    col = mix(col, vec3(1.,1.,.88),  smoothstep(.68,.88,h));
+    col *= uInt;
+    float a = smoothstep(0.,.14,vUv.x)*smoothstep(1.,.86,vUv.x)
+             *smoothstep(0.,.14,vUv.y)*smoothstep(1.,.86,vUv.y);
+    gl_FragColor = vec4(col, a*uInt*0.92);
+}`,
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide
+});
+const lavaBase = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 1.8), lavaMat);
+lavaBase.rotation.x = -Math.PI/2;
+lavaBase.position.set(0.3, 0.03, 0);
+scene.add(lavaBase);
+
+
+// ══════════════════════════════════════════════
+// PARTICLE SYSTEMS
+// ══════════════════════════════════════════════
+
+// ── FIRE ──
+const FMAX = 2000;
+const fPos  = new Float32Array(FMAX*3);
+const fVel  = new Float32Array(FMAX*3);
+const fAge  = new Float32Array(FMAX).fill(-1);
+const fMage = new Float32Array(FMAX);
+const fSz   = new Float32Array(FMAX);
+const fCol  = new Float32Array(FMAX*3);
+
+const fireGeo = new THREE.BufferGeometry();
+const fPA = new THREE.BufferAttribute(fPos, 3);  fPA.setUsage(THREE.DynamicDrawUsage);
+const fAA = new THREE.BufferAttribute(fAge, 1);  fAA.setUsage(THREE.DynamicDrawUsage);
+const fMA = new THREE.BufferAttribute(fMage,1);  fMA.setUsage(THREE.DynamicDrawUsage);
+const fSA = new THREE.BufferAttribute(fSz,  1);  fSA.setUsage(THREE.DynamicDrawUsage);
+const fCA = new THREE.BufferAttribute(fCol, 3);  fCA.setUsage(THREE.DynamicDrawUsage);
+fireGeo.setAttribute('position', fPA);
+fireGeo.setAttribute('aAge',     fAA);
+fireGeo.setAttribute('aMage',    fMA);
+fireGeo.setAttribute('aSz',      fSA);
+fireGeo.setAttribute('aCol',     fCA);
+for(let i=0;i<FMAX;i++) fPos[i*3+1] = -999;
+
+const fireMat = new THREE.ShaderMaterial({
+    vertexShader: `
+attribute float aAge, aMage, aSz;
+attribute vec3  aCol;
+varying vec3  vC;
+varying float vA;
+void main(){
+    float t = (aMage > 0.0) ? clamp(aAge/aMage, 0.0, 1.0) : 0.0;
+    vC = aCol;
+    vA = (1.0-t)*(1.0-t);
+    vec4 mv = modelViewMatrix * vec4(position, 1.0);
+    gl_PointSize = min(aSz*(1.0-t*0.6)*(10.0/-mv.z), 80.0);
+    gl_Position  = projectionMatrix * mv;
+}`,
+    fragmentShader: `
+varying vec3  vC;
+varying float vA;
+void main(){
+    vec2  uv = gl_PointCoord - 0.5;
+    float d  = length(uv);
+    if(d > 0.5) discard;
+    float s = smoothstep(0.5, 0.05, d);
+    gl_FragColor = vec4(vC, vA*s);
+}`,
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending
+});
+const fireMesh = new THREE.Points(fireGeo, fireMat);
+scene.add(fireMesh);
+
+function spawnFire(i, layer){
+    const intens = fireIntensity / 10.0;
+    const R  = [0.14, 0.36, 0.62];
+    const SP = [3.8,  2.6,  1.8];
+    const MA = [0.55, 0.80, 1.10];
+    const SZ = [22,   28,   24];
+    const r   = R[layer] * intens;
+    const ang = Math.random() * Math.PI * 2;
+    const ox  = 0.3; // fire center x
+    fPos[i*3]   = ox + Math.cos(ang)*r*(0.6+Math.random()*0.8);
+    fPos[i*3+1] = Math.random() * 0.12;
+    fPos[i*3+2] = Math.sin(ang)*r*(0.6+Math.random()*0.8);
+    const sp   = SP[layer] * (0.7+Math.random()*0.6) * intens;
+    const tang = layer===0 ? 0.55 : 0.28;
+    fVel[i*3]   = -Math.sin(ang)*tang*sp*0.4 + (Math.random()-.5)*0.25;
+    fVel[i*3+1] = sp;
+    fVel[i*3+2] =  Math.cos(ang)*tang*sp*0.4 + (Math.random()-.5)*0.25;
+    fAge[i]  = 0;
+    fMage[i] = MA[layer] * (0.8+Math.random()*0.4) / Math.max(0.25, intens);
+    fSz[i]   = SZ[layer] * (0.8+Math.random()*0.4);
+    if(layer===0){ fCol[i*3]=1; fCol[i*3+1]=0.92; fCol[i*3+2]=0.55; }
+    else if(layer===1){ fCol[i*3]=1; fCol[i*3+1]=0.52; fCol[i*3+2]=0.04; }
+    else { fCol[i*3]=0.94; fCol[i*3+1]=0.22; fCol[i*3+2]=0; }
+}
+
+// Pre-spawn fire
+for(let i=0;i<600;i++){
+    spawnFire(i, i%3);
+    fAge[i] = Math.random() * fMage[i] * 0.9;
+}
+fPA.needsUpdate=true; fAA.needsUpdate=true; fCA.needsUpdate=true;
+fMA.needsUpdate=true; fSA.needsUpdate=true;
+
+// ── SMOKE ──
+const SMAX = 400;
+const sPos = new Float32Array(SMAX*3), sVel = new Float32Array(SMAX*3);
+const sAge = new Float32Array(SMAX).fill(-1);
+const sMage= new Float32Array(SMAX);
+const sSz  = new Float32Array(SMAX);
+const smokeGeo = new THREE.BufferGeometry();
+const sPA  = new THREE.BufferAttribute(sPos, 3); sPA.setUsage(THREE.DynamicDrawUsage);
+const sAA  = new THREE.BufferAttribute(sAge, 1); sAA.setUsage(THREE.DynamicDrawUsage);
+const sMA2 = new THREE.BufferAttribute(sMage,1); sMA2.setUsage(THREE.DynamicDrawUsage);
+const sSzA = new THREE.BufferAttribute(sSz,  1); sSzA.setUsage(THREE.DynamicDrawUsage);
+smokeGeo.setAttribute('position',sPA);
+smokeGeo.setAttribute('aAge',    sAA);
+smokeGeo.setAttribute('aMage',   sMA2);
+smokeGeo.setAttribute('aSz',     sSzA);
+for(let i=0;i<SMAX;i++) sPos[i*3+1] = -999;
+scene.add(new THREE.Points(smokeGeo, new THREE.ShaderMaterial({
+    vertexShader: `attribute float aAge,aMage,aSz; varying float vA;
+void main(){
+    float t=aMage>0.?clamp(aAge/aMage,0.,1.):0.;
+    vA=smoothstep(0.,.18,t)*(1.-smoothstep(.6,1.,t));
+    vec4 mv=modelViewMatrix*vec4(position,1.);
+    gl_PointSize=min(aSz*(.5+t*.8)*(14./-mv.z),130.);
+    gl_Position=projectionMatrix*mv;
+}`,
+    fragmentShader: `varying float vA;
+void main(){
+    vec2 uv=gl_PointCoord-.5;
+    if(length(uv)>.5)discard;
+    gl_FragColor=vec4(.18,.15,.22,vA*.44);
+}`,
+    transparent:true, depthWrite:false, blending:THREE.NormalBlending
+})));
+
+// ── WATER ──
+const WMAX = 400;
+const wPos = new Float32Array(WMAX*3), wVel = new Float32Array(WMAX*3);
+const wAge = new Float32Array(WMAX).fill(-1);
+const waterGeo = new THREE.BufferGeometry();
+const wPA = new THREE.BufferAttribute(wPos,3); wPA.setUsage(THREE.DynamicDrawUsage);
+const wAA = new THREE.BufferAttribute(wAge,1); wAA.setUsage(THREE.DynamicDrawUsage);
+waterGeo.setAttribute('position',wPA);
+waterGeo.setAttribute('aAge',    wAA);
+for(let i=0;i<WMAX;i++) wPos[i*3+1] = -999;
+scene.add(new THREE.Points(waterGeo, new THREE.ShaderMaterial({
+    vertexShader: `attribute float aAge; varying float vA;
+void main(){
+    float t=clamp(aAge/.85,0.,1.); vA=1.-t*t;
+    vec4 mv=modelViewMatrix*vec4(position,1.);
+    gl_PointSize=min(10.*(1.-t*.5)*(8./-mv.z),30.);
+    gl_Position=projectionMatrix*mv;
+}`,
+    fragmentShader: `varying float vA;
+void main(){
+    vec2 uv=gl_PointCoord-.5;
+    if(length(uv)>.5)discard;
+    float s=smoothstep(.5,.1,length(uv));
+    gl_FragColor=vec4(.55,.84,1.,vA*s*.9);
+}`,
+    transparent:true, depthWrite:false, blending:THREE.NormalBlending
+})));
+
+// ── EMBERS ──
+const EMAX = 350;
+const ePos = new Float32Array(EMAX*3), eVel = new Float32Array(EMAX*3);
+const eAge = new Float32Array(EMAX).fill(-1);
+const eGeo = new THREE.BufferGeometry();
+const ePA = new THREE.BufferAttribute(ePos,3); ePA.setUsage(THREE.DynamicDrawUsage);
+const eAA = new THREE.BufferAttribute(eAge,1); eAA.setUsage(THREE.DynamicDrawUsage);
+eGeo.setAttribute('position',ePA); eGeo.setAttribute('aAge',eAA);
+for(let i=0;i<EMAX;i++) ePos[i*3+1] = -999;
+scene.add(new THREE.Points(eGeo, new THREE.ShaderMaterial({
+    vertexShader: `attribute float aAge; varying float vA;
+void main(){
+    float t=clamp(aAge/.9,0.,1.); vA=1.-t;
+    vec4 mv=modelViewMatrix*vec4(position,1.);
+    gl_PointSize=min(7.*(1.-t*.7)*(7./-mv.z),20.);
+    gl_Position=projectionMatrix*mv;
+}`,
+    fragmentShader: `varying float vA;
+void main(){
+    vec2 uv=gl_PointCoord-.5;
+    if(length(uv)>.5)discard;
+    gl_FragColor=vec4(1.,.65,.1,vA);
+}`,
+    transparent:true, depthWrite:false, blending:THREE.AdditiveBlending
+})));
+
+// ── LOG ──
+const logMesh = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.11, 0.14, 0.65, 8),
+    new THREE.MeshBasicMaterial({ color: 0x5c3317 })
+);
+logMesh.visible = false; scene.add(logMesh);
+
+
+// ══════════════════════════════════════════════
+// UI HELPERS
+// ══════════════════════════════════════════════
+function buildMeter(){
+    const el = document.getElementById('meterBars'); el.innerHTML='';
+    for(let i=0;i<10;i++){
+        const b = document.createElement('div');
+        const on = i < fireIntensity;
+        b.style.cssText = `width:11px;height:${on?(7+i*2.5)+'px':'3px'};`
+            + `background:${on?(fireIntensity<=3?'#22c55e':fireIntensity<=6?'#f97316':'#ef4444'):'rgba(255,255,255,.1)'};`
+            + `border-radius:3px;transition:all .3s`;
+        el.appendChild(b);
+    }
+}
+function buildDrops(){
+    const el = document.getElementById('wDrops'); el.innerHTML='';
+    for(let i=0;i<6;i++){
+        const d = document.createElement('span');
+        d.className = 'drop'+(i<waterHits?' on':'');
+        d.textContent = '💧'; el.appendChild(d);
+    }
+    document.getElementById('wVal').textContent = waterHits;
+}
+const setMsg = t => document.getElementById('msg').textContent = t;
+const setBtns = on => ['btnW','btnL'].forEach(id =>
+    document.getElementById(id).classList.toggle('disabled', !on));
+function showEnd(title, sub){
+    document.getElementById('ovTitle').textContent = title;
+    document.getElementById('ovSub').textContent   = sub;
+    document.getElementById('overlay').classList.add('show');
+}
+buildMeter(); buildDrops();
+
+// ══════════════════════════════════════════════
+// GAME ACTIONS
+// ══════════════════════════════════════════════
+let waterOn=false, logAnim=null, fAcc=0, sAcc=0;
+
+function spawnEmber(x,y,z,type){
+    for(let i=0;i<EMAX;i++){
+        if(eAge[i]<0||eAge[i]>.88){
+            const sp=type==='explode'?7:type==='fire'?3.5:1.8;
+            ePos[i*3]  =x+(Math.random()-.5)*(type==='explode'?2.5:.6);
+            ePos[i*3+1]=y+(Math.random()-.5)*(type==='explode'?2:.4);
+            ePos[i*3+2]=z+(Math.random()-.5)*(type==='explode'?2.5:.6);
+            eVel[i*3]  =(Math.random()-.5)*sp;
+            eVel[i*3+1]=Math.random()*sp*(type==='steam'?.4:1);
+            eVel[i*3+2]=(Math.random()-.5)*sp;
+            eAge[i]=0; return;
+        }
+    }
+}
+
+document.getElementById('btnW').addEventListener('click', ()=>{
+    if(gameState!=='playing') return;
+    gameState='busy'; setBtns(false); waterOn=true;
+    setMsg('💧 水をかけている！');
+    setTimeout(()=>{
+        waterOn=false;
+        fireIntensity = Math.max(0, fireIntensity-1);
+        waterHits++;
+        buildMeter(); buildDrops();
+        for(let i=0;i<70;i++) spawnEmber(0.3, 0.6, 0, 'steam');
+        if(waterHits>=6 || fireIntensity<=0){
+            gameState='won';
+            setMsg('🎉 火が消えた！やったー！');
+            for(let i=0;i<FMAX;i++){fPos[i*3+1]=-999;fAge[i]=-1;}
+            for(let i=0;i<SMAX;i++){sPos[i*3+1]=-999;sAge[i]=-1;}
+            lavaUni.uInt.value=0;
+            setTimeout(()=>showEnd('🎉 かしょうせいこう！','火を消すことができました！'),800);
+        } else {
+            gameState='playing'; setBtns(true);
+            setMsg(`💧 あと${6-waterHits}かい！がんばれ！`);
+        }
+    }, 1900);
+});
+
+document.getElementById('btnL').addEventListener('click', ()=>{
+    if(gameState!=='playing') return;
+    gameState='busy'; setBtns(false);
+    setMsg('🪵 薪を投げた！');
+    const start = new THREE.Vector3(-1.7,1.4,0.2);
+    const end   = new THREE.Vector3(0.5, 0.2,0);
+    const ctrl  = new THREE.Vector3(-0.4,4.2,0.1);
+    logMesh.visible=true;
+    logAnim={start,end,ctrl,t:0};
+    setTimeout(()=>{
+        logMesh.visible=false; logAnim=null;
+        fireIntensity = Math.min(10, fireIntensity+2);
+        buildMeter();
+        for(let i=0;i<120;i++) spawnEmber(0.3,0.5,0,'fire');
+        if(fireIntensity>=10){
+            gameState='lost';
+            for(let i=0;i<300;i++) spawnEmber(0.3,1.2,0,'explode');
+            setMsg('💥 大爆発！！！');
+            setTimeout(()=>showEnd('💥 ばくはつ！','薪を投げすぎた！もう一度チャレンジしよう！'),1100);
+        } else {
+            gameState='playing'; setBtns(true);
+            setMsg(`🔥 もっと燃えた！(強さ ${fireIntensity}/10)`);
+        }
+    }, 1300);
+});
+
+document.getElementById('btnRetry').addEventListener('click', ()=>{
+    fireIntensity=5; waterHits=0; gameState='playing';
+    waterOn=false; logMesh.visible=false; logAnim=null;
+    for(let i=0;i<FMAX;i++) fAge[i]=-1;
+    for(let i=0;i<SMAX;i++) sAge[i]=-1;
+    for(let i=0;i<WMAX;i++) wAge[i]=-1;
+    for(let i=0;i<EMAX;i++) eAge[i]=-1;
+    lavaUni.uInt.value=0.6;
+    for(let i=0;i<600;i++){spawnFire(i,i%3); fAge[i]=Math.random()*fMage[i]*.9;}
+    fPA.needsUpdate=true; fAA.needsUpdate=true; fCA.needsUpdate=true;
+    fMA.needsUpdate=true; fSA.needsUpdate=true;
+    buildMeter(); buildDrops(); setBtns(true);
+    setMsg('🔥 火が燃えている！水をかけろ！');
+    document.getElementById('overlay').classList.remove('show');
+});
+
+// ══════════════════════════════════════════════
+// RESIZE
+// ══════════════════════════════════════════════
+window.addEventListener('resize', ()=>{
+    updateCamera();
+    renderer.setSize(innerWidth, innerHeight);
+});
+
+// ══════════════════════════════════════════════
+// ANIMATION LOOP
+// ══════════════════════════════════════════════
+let prev = performance.now();
+
+(function loop(){
+    requestAnimationFrame(loop);
+    const now=performance.now(), dt=Math.min((now-prev)/1000,.05); prev=now;
+    const t=now/1000;
+    const intens=fireIntensity/10.0;
+
+    // Lava
+    lavaUni.uTime.value = t;
+    lavaUni.uInt.value  = THREE.MathUtils.lerp(lavaUni.uInt.value, intens, .055);
+
+    // Ground glow
+    glowGround.material.opacity = intens * 0.15;
+
+    // Window flicker
+    wins.forEach((wm,i) => { wm.opacity = (0.7+Math.sin(t*4.2+i)*0.3) * Math.max(intens,0.1); });
+
+    // Truck lights
+    const fl = Math.sin(t*9) > 0;
+    fl1M.color.setHex(fl ? 0x0033ff : 0x000011);
+    fl2M.color.setHex(fl ? 0x110000 : 0xff0000);
+
+    // ── Spawn fire ──
+    if(intens>0 && gameState!=='won'){
+        fAcc+=dt;
+        if(fAcc>0.033){
+            fAcc=0;
+            const n=Math.ceil(intens*8);
+            let spawned=0;
+            for(let i=0;i<FMAX&&spawned<n;i++){
+                if(fAge[i]<0||fAge[i]>fMage[i]){spawnFire(i,spawned%3);spawned++;}
+            }
+        }
+        // smoke
+        sAcc+=dt;
+        if(sAcc>0.08){
+            sAcc=0;
+            for(let i=0;i<SMAX;i++){
+                if(sAge[i]<0||sAge[i]>sMage[i]){
+                    const r=0.26*intens, a=Math.random()*Math.PI*2;
+                    sPos[i*3]  =0.3+Math.cos(a)*r*(Math.random()*.5+.5);
+                    sPos[i*3+1]=2.0*intens+Math.random()*.4;
+                    sPos[i*3+2]=Math.sin(a)*r*(Math.random()*.5+.5);
+                    sVel[i*3]=(Math.random()-.5)*.2;
+                    sVel[i*3+1]=.4+Math.random()*.35;
+                    sVel[i*3+2]=(Math.random()-.5)*.2;
+                    sAge[i]=0; sMage[i]=1.8+Math.random()*1.2; sSz[i]=36+Math.random()*24;
+                    break;
+                }
+            }
+        }
+    }
+
+    // ── Update fire ──
+    for(let i=0;i<FMAX;i++){
+        if(fAge[i]<0) continue;
+        fAge[i]+=dt;
+        if(fAge[i]>fMage[i]){fPos[i*3+1]=-999;fAge[i]=-1;continue;}
+        const tx=fAge[i]/fMage[i];
+        fPos[i*3]  +=fVel[i*3]*dt;
+        fPos[i*3+1]+=fVel[i*3+1]*dt;
+        fPos[i*3+2]+=fVel[i*3+2]*dt;
+        // Swirl
+        const px=fPos[i*3], pz=fPos[i*3+2], sw=1.2*dt*(1-tx*.5);
+        fPos[i*3]  =px*Math.cos(sw)-pz*Math.sin(sw);
+        fPos[i*3+2]=px*Math.sin(sw)+pz*Math.cos(sw);
+        fVel[i*3]  +=(Math.random()-.5)*.4*dt;
+        fVel[i*3+2]+=(Math.random()-.5)*.4*dt;
+        // Color
+        if(tx<.22){fCol[i*3]=1;fCol[i*3+1]=.9;fCol[i*3+2]=.5;}
+        else if(tx<.48){const p=(tx-.22)/.26;fCol[i*3]=1;fCol[i*3+1]=.9-p*.42;fCol[i*3+2]=.5-p*.5;}
+        else if(tx<.72){const p=(tx-.48)/.24;fCol[i*3]=1;fCol[i*3+1]=.48-p*.28;fCol[i*3+2]=0;}
+        else{const p=(tx-.72)/.28;fCol[i*3]=1-p*.4;fCol[i*3+1]=.2-p*.2;fCol[i*3+2]=0;}
+    }
+    fPA.needsUpdate=true; fAA.needsUpdate=true; fCA.needsUpdate=true;
+    fMA.needsUpdate=true; fSA.needsUpdate=true;
+
+    // ── Update smoke ──
+    for(let i=0;i<SMAX;i++){
+        if(sAge[i]<0) continue;
+        sAge[i]+=dt;
+        if(sAge[i]>sMage[i]){sPos[i*3+1]=-999;sAge[i]=-1;continue;}
+        sPos[i*3]  +=sVel[i*3]*dt;
+        sPos[i*3+1]+=sVel[i*3+1]*dt;
+        sPos[i*3+2]+=sVel[i*3+2]*dt;
+    }
+    sPA.needsUpdate=true; sAA.needsUpdate=true; sMA2.needsUpdate=true; sSzA.needsUpdate=true;
+
+    // ── Update water ──
+    if(waterOn && Math.random()<dt*220){
+        for(let i=0;i<WMAX;i++){
+            if(wAge[i]<0||wAge[i]>.88){
+                wPos[i*3]  =-1.9+(Math.random()-.5)*.06;
+                wPos[i*3+1]= 1.38+(Math.random()-.5)*.06;
+                wPos[i*3+2]=(Math.random()-.5)*.06;
+                wVel[i*3]  = 2.8+(Math.random()-.5)*.3;
+                wVel[i*3+1]= 2.4+(Math.random()-.5)*.35;
+                wVel[i*3+2]=(Math.random()-.5)*.18;
+                wAge[i]=0; break;
+            }
+        }
+    }
+    for(let i=0;i<WMAX;i++){
+        if(wAge[i]<0) continue;
+        wAge[i]+=dt;
+        if(wAge[i]>.88){wPos[i*3+1]=-999;wAge[i]=-1;continue;}
+        wPos[i*3]  +=wVel[i*3]*dt;
+        wPos[i*3+1]+=wVel[i*3+1]*dt;
+        wPos[i*3+2]+=wVel[i*3+2]*dt;
+        wVel[i*3+1]-=9.8*dt;
+        if(wPos[i*3+1]<.08){wPos[i*3+1]=-999;wAge[i]=-1;}
+    }
+    wPA.needsUpdate=true; wAA.needsUpdate=true;
+
+    // ── Log arc ──
+    if(logAnim){
+        logAnim.t = Math.min(logAnim.t+dt*1.1, 1);
+        const{start:ls,end:le,ctrl:lc,t:lt}=logAnim, iv=1-lt;
+        logMesh.position.set(
+            iv*iv*ls.x+2*iv*lt*lc.x+lt*lt*le.x,
+            iv*iv*ls.y+2*iv*lt*lc.y+lt*lt*le.y,
+            iv*iv*ls.z+2*iv*lt*lc.z+lt*lt*le.z
+        );
+        logMesh.rotation.z = lt*Math.PI*3.5;
+    }
+
+    // ── Embers ──
+    for(let i=0;i<EMAX;i++){
+        if(eAge[i]<0) continue;
+        eAge[i]+=dt;
+        if(eAge[i]>.9){ePos[i*3+1]=-999;eAge[i]=-1;continue;}
+        ePos[i*3]  +=eVel[i*3]*dt;
+        ePos[i*3+1]+=eVel[i*3+1]*dt;
+        ePos[i*3+2]+=eVel[i*3+2]*dt;
+        eVel[i*3+1]-=4.5*dt;
+    }
+    ePA.needsUpdate=true; eAA.needsUpdate=true;
+
+    // RENDER
+    renderer.render(scene, camera);
+})();
+</script>
+</body>
+</html>

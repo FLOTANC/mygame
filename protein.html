@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>たんぱくしつどっち？ 🥚</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background: #0d0820;
+            min-height: 100vh;
+            font-family: 'Hiragino Maru Gothic ProN', 'Rounded Mplus 1c', sans-serif;
+            touch-action: manipulation;
+            user-select: none;
+            -webkit-user-select: none;
+            overflow-x: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        #stars { position: fixed; inset: 0; pointer-events: none; z-index: 0; }
+
+        /* ── Top bar ── */
+        .top-bar {
+            position: relative;
+            z-index: 10;
+            width: 100%;
+            display: flex;
+            align-items: center;
+            padding: 0.8rem 1rem;
+            gap: 0.7rem;
+            justify-content: space-between;
+        }
+
+        .back-btn {
+            background: rgba(255,255,255,0.1);
+            border: 1.5px solid rgba(255,255,255,0.2);
+            border-radius: 999px;
+            color: #c4b5fd;
+            font-family: inherit;
+            font-size: 0.85rem;
+            font-weight: 700;
+            padding: 0.4rem 1rem;
+            cursor: pointer;
+            text-decoration: none;
+            min-height: 44px;
+            display: inline-flex;
+            align-items: center;
+            transition: background 0.2s;
+        }
+        .back-btn:hover { background: rgba(255,255,255,0.18); }
+
+        .page-title {
+            font-size: clamp(1rem, 3.5vw, 1.35rem);
+            font-weight: 800;
+            background: linear-gradient(135deg, #22c55e, #06b6d4);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            flex: 1;
+            text-align: center;
+        }
+
+        .score-badge {
+            background: rgba(34,197,94,0.15);
+            border: 1.5px solid rgba(34,197,94,0.4);
+            border-radius: 999px;
+            color: #4ade80;
+            font-weight: 700;
+            font-size: clamp(0.8rem, 3vw, 1rem);
+            padding: 0.35rem 0.9rem;
+            min-height: 44px;
+            display: inline-flex;
+            align-items: center;
+            white-space: nowrap;
+        }
+
+        /* ── Main ── */
+        .main {
+            position: relative;
+            z-index: 1;
+            width: 100%;
+            max-width: 500px;
+            padding: 0 1rem 2rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 1rem;
+            flex: 1;
+        }
+
+        /* ── Question counter ── */
+        .q-counter {
+            color: #a78bfa;
+            font-size: clamp(0.8rem, 3vw, 0.95rem);
+            font-weight: 600;
+        }
+
+        /* ── Question text ── */
+        .question-text {
+            font-size: clamp(1rem, 4vw, 1.3rem);
+            font-weight: 800;
+            color: #f0e6ff;
+            text-align: center;
+            text-shadow: 0 0 16px rgba(168,85,247,0.5);
+        }
+
+        /* ── Cards area ── */
+        .cards-area {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: clamp(0.6rem, 2.5vw, 1.2rem);
+            width: 100%;
+        }
+
+        /* ── Food card ── */
+        .food-card {
+            background: rgba(255,255,255,0.07);
+            border: 2.5px solid rgba(255,255,255,0.15);
+            border-radius: 1.5rem;
+            padding: 1rem 0.5rem 1.2rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.5rem;
+            cursor: pointer;
+            transition: transform 0.2s cubic-bezier(0.34,1.56,0.64,1),
+                        border-color 0.2s,
+                        box-shadow 0.2s;
+            min-height: clamp(160px, 45vw, 220px);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .food-card:active {
+            transform: scale(0.96);
+        }
+
+        .food-card.selected {
+            border-color: #22c55e;
+            box-shadow: 0 0 0 3px rgba(34,197,94,0.3), 0 8px 30px rgba(34,197,94,0.2);
+        }
+
+        .food-card.disabled {
+            cursor: default;
+            pointer-events: none;
+        }
+
+        /* result overlays */
+        .food-card.correct::after {
+            content: '⭐';
+            position: absolute;
+            inset: 0;
+            background: rgba(34,197,94,0.25);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 3.5rem;
+            border-radius: 1.4rem;
+            animation: revealOverlay 0.4s cubic-bezier(0.34,1.56,0.64,1);
+        }
+
+        .food-card.wrong::after {
+            content: '❌';
+            position: absolute;
+            inset: 0;
+            background: rgba(239,68,68,0.18);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 3rem;
+            border-radius: 1.4rem;
+            animation: revealOverlay 0.4s cubic-bezier(0.34,1.56,0.64,1);
+        }
+
+        .food-card.correct {
+            border-color: #22c55e;
+            box-shadow: 0 0 32px rgba(34,197,94,0.5), 0 0 60px rgba(34,197,94,0.2);
+        }
+
+        .food-card.wrong {
+            border-color: #ef4444;
+            box-shadow: 0 0 20px rgba(239,68,68,0.3);
+        }
+
+        @keyframes revealOverlay {
+            from { opacity: 0; transform: scale(0.5); }
+            to   { opacity: 1; transform: scale(1); }
+        }
+
+        /* shake animation */
+        @keyframes shake {
+            0%,100% { transform: translateX(0); }
+            20%  { transform: translateX(-8px); }
+            40%  { transform: translateX(8px); }
+            60%  { transform: translateX(-5px); }
+            80%  { transform: translateX(5px); }
+        }
+
+        .food-card.shake {
+            animation: shake 0.4s ease-in-out;
+        }
+
+        .card-emoji {
+            font-size: clamp(2.8rem, 10vw, 5rem);
+            line-height: 1;
+            flex-shrink: 0;
+        }
+
+        .card-name {
+            font-size: clamp(0.9rem, 3.5vw, 1.2rem);
+            font-weight: 800;
+            color: #f0e6ff;
+            text-align: center;
+        }
+
+        .card-protein {
+            font-size: clamp(0.72rem, 2.5vw, 0.9rem);
+            color: #a78bfa;
+            text-align: center;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .card-protein.visible {
+            opacity: 1;
+        }
+
+        /* ── Feedback text ── */
+        .feedback {
+            min-height: 2rem;
+            font-size: clamp(1rem, 4vw, 1.3rem);
+            font-weight: 800;
+            color: #f0e6ff;
+            text-align: center;
+            text-shadow: 0 0 16px rgba(168,85,247,0.5);
+            animation: none;
+        }
+
+        @keyframes feedbackPop {
+            from { transform: scale(0.5); opacity: 0; }
+            to   { transform: scale(1);   opacity: 1; }
+        }
+
+        .feedback.pop {
+            animation: feedbackPop 0.4s cubic-bezier(0.34,1.56,0.64,1);
+        }
+
+        /* ── Next btn ── */
+        .next-btn {
+            background: linear-gradient(135deg, #16a34a, #22c55e);
+            border: none;
+            border-radius: 999px;
+            color: white;
+            font-family: inherit;
+            font-size: clamp(1rem, 4vw, 1.2rem);
+            font-weight: 700;
+            padding: 0.75rem 2.2rem;
+            cursor: pointer;
+            min-height: 56px;
+            min-width: 160px;
+            transition: transform 0.2s, filter 0.2s;
+            box-shadow: 0 4px 20px rgba(34,197,94,0.4);
+            display: none;
+        }
+
+        .next-btn:hover { filter: brightness(1.15); }
+        .next-btn:active { transform: scale(0.95); }
+
+        /* ── End screen ── */
+        .end-screen {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            gap: 1rem;
+            text-align: center;
+            padding: 1rem 0;
+        }
+
+        .end-screen.show { display: flex; }
+
+        .end-big-emoji {
+            font-size: clamp(3.5rem, 12vw, 5rem);
+            animation: popIn 0.5s cubic-bezier(0.34,1.56,0.64,1);
+        }
+
+        .end-score-text {
+            font-size: clamp(1.5rem, 6vw, 2.2rem);
+            font-weight: 900;
+            color: #f0e6ff;
+            text-shadow: 0 0 24px rgba(168,85,247,0.6);
+        }
+
+        .end-msg {
+            font-size: clamp(1rem, 4vw, 1.3rem);
+            color: #c4b5fd;
+            font-weight: 700;
+        }
+
+        .end-msg-sub {
+            font-size: clamp(0.8rem, 3vw, 1rem);
+            color: #7c3aed;
+        }
+
+        .replay-btn {
+            background: linear-gradient(135deg, #7c3aed, #a855f7);
+            border: none;
+            border-radius: 999px;
+            color: white;
+            font-family: inherit;
+            font-size: clamp(1rem, 4vw, 1.2rem);
+            font-weight: 700;
+            padding: 0.75rem 2.2rem;
+            cursor: pointer;
+            min-height: 56px;
+            min-width: 160px;
+            margin-top: 0.5rem;
+            box-shadow: 0 4px 20px rgba(168,85,247,0.4);
+            transition: transform 0.2s, filter 0.2s;
+        }
+        .replay-btn:hover { filter: brightness(1.15); }
+        .replay-btn:active { transform: scale(0.95); }
+
+        @keyframes popIn {
+            from { transform: scale(0.4); opacity: 0; }
+            to   { transform: scale(1);   opacity: 1; }
+        }
+
+        /* ── Sparkle ── */
+        .sparkle {
+            position: fixed;
+            pointer-events: none;
+            z-index: 200;
+            font-size: clamp(1.2rem, 4vw, 1.8rem);
+            animation: sparkleFly var(--dur) ease-out forwards;
+        }
+
+        @keyframes sparkleFly {
+            0%   { opacity: 1; transform: translateY(0) scale(0.5); }
+            100% { opacity: 0; transform: translateY(var(--dy)) scale(1.5); }
+        }
+
+        /* ── sound button ── */
+        .sound-btn {
+            position: fixed; top: 1.1rem; right: 1.4rem; z-index: 100;
+            width: 42px; height: 42px; border-radius: 50%;
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(255,255,255,0.15);
+            color: #fff; font-size: 1.15rem; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            transition: background 0.2s, transform 0.15s;
+        }
+        .sound-btn:hover { background: rgba(255,255,255,0.16); transform: scale(1.08); }
+        .sound-btn.muted { opacity: 0.4; }
+    </style>
+</head>
+<body>
+
+<audio id="bgm" src="tanpaku-bgm.mp3" loop preload="auto"></audio>
+<button class="sound-btn" id="soundBtn">🔊</button>
+
+<canvas id="stars"></canvas>
+
+<div class="top-bar">
+    <a class="back-btn" href="index.html">← もどる</a>
+    <div class="page-title">🥚 たんぱくしつどっち？</div>
+    <div class="score-badge" id="scoreBadge">0 / 6</div>
+</div>
+
+<div class="main" id="gameArea">
+    <div class="q-counter" id="qCounter">もん 1 / 6</div>
+    <div class="question-text">どっちのたんぱくしつが多いかな？</div>
+
+    <div class="cards-area">
+        <div class="food-card" id="card0">
+            <div class="card-emoji" id="emoji0">🥚</div>
+            <div class="card-name" id="name0">たまご</div>
+            <div class="card-protein" id="protein0">100gあたり 12g</div>
+        </div>
+        <div class="food-card" id="card1">
+            <div class="card-emoji" id="emoji1">🍗</div>
+            <div class="card-name" id="name1">とりにく</div>
+            <div class="card-protein" id="protein1">100gあたり 22g</div>
+        </div>
+    </div>
+
+    <div class="feedback" id="feedback"> </div>
+    <button class="next-btn" id="nextBtn">つぎのもん →</button>
+</div>
+
+<!-- End screen -->
+<div class="end-screen" id="endScreen">
+    <div class="end-big-emoji" id="endEmoji">🎉</div>
+    <div class="end-score-text" id="endScoreText">6 / 6もん せいかい！</div>
+    <div class="end-msg" id="endMsg">かんぺきー！！すごすぎる！</div>
+    <div class="end-msg-sub" id="endMsgSub">たんぱくしつ はかせだね✨</div>
+    <button class="replay-btn" id="replayBtn">もういちど 🔄</button>
+</div>
+
+<script>
+// ── Stars ──────────────────────────────────────────────────────────
+(function(){
+    const c = document.getElementById('stars');
+    const ctx = c.getContext('2d');
+    function resize(){ c.width = innerWidth; c.height = innerHeight; }
+    resize(); addEventListener('resize', resize);
+    const stars = Array.from({length:100}, ()=>({
+        x:Math.random(), y:Math.random(),
+        r:Math.random()*1.8+0.4,
+        t:Math.random()*Math.PI*2,
+        s:Math.random()*0.018+0.006
+    }));
+    (function tick(){
+        ctx.fillStyle='#0d0820'; ctx.fillRect(0,0,c.width,c.height);
+        stars.forEach(s=>{
+            s.t+=s.s;
+            ctx.save();
+            ctx.globalAlpha=0.25+Math.sin(s.t)*0.55;
+            ctx.fillStyle='#e9d5ff';
+            ctx.shadowBlur=8; ctx.shadowColor='#a855f7';
+            ctx.beginPath(); ctx.arc(s.x*c.width,s.y*c.height,s.r,0,Math.PI*2); ctx.fill();
+            ctx.restore();
+        });
+        requestAnimationFrame(tick);
+    })();
+})();
+
+// ── Quiz data ──────────────────────────────────────────────────────
+const QUESTIONS = [
+    { a: { emoji:'🥚', name:'たまご',   protein: 12 },
+      b: { emoji:'🍗', name:'とりにく', protein: 22 }, winner: 1 },
+    { a: { emoji:'🫘', name:'とうふ',   protein: 7  },
+      b: { emoji:'🐟', name:'ツナかん', protein: 16 }, winner: 1 },
+    { a: { emoji:'🥛', name:'ぎゅうにゅう', protein: 3 },
+      b: { emoji:'🫙', name:'ヨーグルト',   protein: 10 }, winner: 1 },
+    { a: { emoji:'🍚', name:'ごはん',   protein: 3  },
+      b: { emoji:'🌱', name:'えだまめ', protein: 11 }, winner: 1 },
+    { a: { emoji:'🍌', name:'バナナ',   protein: 1  },
+      b: { emoji:'🥜', name:'アーモンド', protein: 20 }, winner: 1 },
+    { a: { emoji:'🧀', name:'チーズ',   protein: 25 },
+      b: { emoji:'🍖', name:'ぎゅうにく', protein: 17 }, winner: 0 },
+];
+
+// ── State ──────────────────────────────────────────────────────────
+let qIndex  = 0;
+let score   = 0;
+let answered = false;
+
+const card0       = document.getElementById('card0');
+const card1       = document.getElementById('card1');
+const emoji0      = document.getElementById('emoji0');
+const emoji1      = document.getElementById('emoji1');
+const name0       = document.getElementById('name0');
+const name1       = document.getElementById('name1');
+const protein0    = document.getElementById('protein0');
+const protein1    = document.getElementById('protein1');
+const feedback    = document.getElementById('feedback');
+const nextBtn     = document.getElementById('nextBtn');
+const qCounter    = document.getElementById('qCounter');
+const scoreBadge  = document.getElementById('scoreBadge');
+const gameArea    = document.getElementById('gameArea');
+const endScreen   = document.getElementById('endScreen');
+const endEmoji    = document.getElementById('endEmoji');
+const endScoreText= document.getElementById('endScoreText');
+const endMsg      = document.getElementById('endMsg');
+const endMsgSub   = document.getElementById('endMsgSub');
+const replayBtn   = document.getElementById('replayBtn');
+
+function loadQuestion(idx) {
+    answered = false;
+    const q = QUESTIONS[idx];
+
+    emoji0.textContent = q.a.emoji;
+    name0.textContent  = q.a.name;
+    protein0.textContent = `100gあたり ${q.a.protein}g`;
+    protein0.classList.remove('visible');
+
+    emoji1.textContent = q.b.emoji;
+    name1.textContent  = q.b.name;
+    protein1.textContent = `100gあたり ${q.b.protein}g`;
+    protein1.classList.remove('visible');
+
+    [card0, card1].forEach(c => {
+        c.className = 'food-card';
+        c.style.pointerEvents = '';
+    });
+
+    qCounter.textContent = `もん ${idx + 1} / 6`;
+    feedback.textContent = ' ';
+    feedback.classList.remove('pop');
+    nextBtn.style.display = 'none';
+}
+
+function onCardTap(chosenIdx) {
+    if (answered) return;
+    answered = true;
+
+    const q = QUESTIONS[qIndex];
+    const isCorrect = (chosenIdx === q.winner);
+
+    // disable both
+    card0.classList.add('disabled');
+    card1.classList.add('disabled');
+
+    // reveal proteins
+    protein0.classList.add('visible');
+    protein1.classList.add('visible');
+
+    // highlight chosen
+    if (isCorrect) {
+        const winCard = chosenIdx === 0 ? card0 : card1;
+        const loseCard = chosenIdx === 0 ? card1 : card0;
+        winCard.classList.add('correct');
+        loseCard.classList.add('wrong');
+        score++;
+        scoreBadge.textContent = `${score} / 6`;
+        setFeedback('せいかい！✨ すごいね！', true);
+        spawnSparkles();
+    } else {
+        const winCard = q.winner === 0 ? card0 : card1;
+        const chosenCard = chosenIdx === 0 ? card0 : card1;
+        chosenCard.classList.add('wrong');
+        winCard.classList.add('correct');
+        chosenCard.classList.add('shake');
+        setTimeout(() => chosenCard.classList.remove('shake'), 450);
+        const winName = q.winner === 0 ? q.a.name : q.b.name;
+        setFeedback(`ざんねん…${winName}のほうが多かった！`, false);
+    }
+
+    setTimeout(() => {
+        nextBtn.style.display = 'inline-flex';
+    }, 600);
+}
+
+function setFeedback(text, correct) {
+    feedback.textContent = text;
+    feedback.classList.remove('pop');
+    void feedback.offsetWidth;
+    feedback.classList.add('pop');
+    feedback.style.color = correct ? '#4ade80' : '#f87171';
+}
+
+card0.addEventListener('click',      () => onCardTap(0));
+card0.addEventListener('touchstart', () => onCardTap(0), {passive: true});
+card1.addEventListener('click',      () => onCardTap(1));
+card1.addEventListener('touchstart', () => onCardTap(1), {passive: true});
+
+nextBtn.addEventListener('click', () => {
+    qIndex++;
+    if (qIndex >= QUESTIONS.length) {
+        showEndScreen();
+    } else {
+        loadQuestion(qIndex);
+    }
+});
+
+replayBtn.addEventListener('click', () => {
+    qIndex = 0; score = 0;
+    scoreBadge.textContent = '0 / 6';
+    endScreen.classList.remove('show');
+    gameArea.style.display = '';
+    loadQuestion(0);
+});
+
+function showEndScreen() {
+    gameArea.style.display = 'none';
+    endScreen.classList.add('show');
+    endScoreText.textContent = `${score} / 6もん せいかい！`;
+
+    let emoji, msg, sub;
+    if (score === 6) {
+        emoji = '🏆'; msg = 'かんぺきー！！すごすぎる！'; sub = 'たんぱくしつ はかせだね✨';
+    } else if (score >= 4) {
+        emoji = '🌟'; msg = 'よくできました！！'; sub = 'なかなかすごいね！';
+    } else if (score >= 2) {
+        emoji = '😊'; msg = 'がんばったね！'; sub = 'もう1かいやってみよう！';
+    } else {
+        emoji = '💪'; msg = 'つぎはできるよ！'; sub = 'もういちどちょうせん！';
+    }
+    endEmoji.textContent = emoji;
+    endMsg.textContent   = msg;
+    endMsgSub.textContent = sub;
+    spawnSparkles();
+    setTimeout(spawnSparkles, 500);
+}
+
+// ── Sparkles ───────────────────────────────────────────────────────
+function spawnSparkles() {
+    const emojis = ['✨','🌟','⭐','💫','🎉','🌈','💜','🥦'];
+    for (let i = 0; i < 14; i++) {
+        setTimeout(() => {
+            const el = document.createElement('span');
+            el.className = 'sparkle';
+            el.textContent = emojis[Math.floor(Math.random() * emojis.length)];
+            const x = Math.random() * innerWidth;
+            const y = Math.random() * innerHeight * 0.7;
+            const dy = -(Math.random() * 180 + 60) + 'px';
+            const dur = (Math.random() * 0.5 + 0.6) + 's';
+            el.style.cssText = `left:${x}px;top:${y}px;--dy:${dy};--dur:${dur};font-size:${1+Math.random()*1.2}rem`;
+            document.body.appendChild(el);
+            setTimeout(() => el.remove(), 1200);
+        }, i * 70);
+    }
+}
+
+// ── BGM ────────────────────────────────────────────────────────────
+(function(){
+    const bgm = document.getElementById('bgm');
+    const btn = document.getElementById('soundBtn');
+    bgm.volume = 0.5;
+    let started = false, muted = false;
+
+    function startBgm() {
+        if (started) return;
+        started = true;
+        bgm.play().catch(() => {});
+    }
+    document.addEventListener('pointerdown', startBgm, { once: true });
+    document.addEventListener('touchstart',  startBgm, { once: true, passive: true });
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) bgm.pause();
+        else if (started && !muted) bgm.play().catch(() => {});
+    });
+    btn.addEventListener('click', e => {
+        e.stopPropagation();
+        startBgm();
+        muted = !muted;
+        bgm.muted = muted;
+        btn.textContent = muted ? '🔇' : '🔊';
+        btn.classList.toggle('muted', muted);
+    });
+})();
+
+// ── Boot ───────────────────────────────────────────────────────────
+loadQuestion(0);
+</script>
+</body>
+</html>
